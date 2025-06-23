@@ -65,6 +65,7 @@ class VideoCaptureActivity : CaptureActivity() {
         super.showPreview()
         thirdOption.visibility = View.VISIBLE
         muteToggle.visibility = View.GONE
+        micOffIcon.visibility = View.GONE
     }
 
     private fun confirmVideo() {
