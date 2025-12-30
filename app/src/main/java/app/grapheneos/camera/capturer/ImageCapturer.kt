@@ -103,7 +103,7 @@ class ImageCapturer(val mActivity: MainActivity) {
 
         currentImageSaver = imageSaver
 
-        imageCapture.takePicture(ImageSaver.imageCaptureCallbackExecutor, imageSaver)
+        ImageSaver.imageCaptureCallbackExecutor?.let { imageCapture.takePicture(it, imageSaver) }
         fadeCaptureButton()
     }
 

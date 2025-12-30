@@ -57,7 +57,7 @@ class GallerySliderAdapter(
 
         holder.currentPosition = position
 
-        gActivity.asyncImageLoader.executeIfAlive {
+        gActivity.asyncImageLoader?.executeIfAlive {
             val bitmap: Bitmap? = try {
                 if (item.type == ITEM_TYPE_VIDEO) {
                     getVideoThumbnail(gActivity, item.uri)
