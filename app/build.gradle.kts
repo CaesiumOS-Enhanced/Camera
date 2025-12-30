@@ -48,7 +48,7 @@ android {
     defaultConfig {
         applicationId = "app.grapheneos.camera"
         minSdk = 29
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 90
         versionName = versionCode.toString()
     }
