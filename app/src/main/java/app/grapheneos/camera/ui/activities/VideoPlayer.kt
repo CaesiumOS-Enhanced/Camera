@@ -1,6 +1,5 @@
 package app.grapheneos.camera.ui.activities
 
-import android.graphics.drawable.ColorDrawable
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.net.Uri
@@ -21,6 +20,7 @@ import app.grapheneos.camera.R
 import app.grapheneos.camera.databinding.VideoPlayerBinding
 import app.grapheneos.camera.util.getParcelableExtra
 import kotlin.concurrent.thread
+import androidx.core.graphics.drawable.toDrawable
 
 
 class VideoPlayer : AppCompatActivity() {
@@ -60,7 +60,7 @@ class VideoPlayer : AppCompatActivity() {
         setContentView(binding.root)
 
         supportActionBar?.let {
-            it.setBackgroundDrawable(ColorDrawable(ContextCompat.getColor(this, R.color.appbar)))
+            it.setBackgroundDrawable(ContextCompat.getColor(this, R.color.appbar).toDrawable())
             it.setDisplayShowTitleEnabled(false)
             it.setDisplayHomeAsUpEnabled(true)
         }

@@ -22,15 +22,14 @@ open class CustomNumFilter(
                 dend,
                 dest.length
             )).toFloat()
-            if (this.shouldAcceptNumber(input)) {
-                return transformedString
+            return if (this.shouldAcceptNumber(input)) {
+                transformedString
             } else {
-                return ""
+                ""
             }
         } catch (e: NumberFormatException) {
             e.printStackTrace()
             return transformedString
         }
-        return transformedString
     }
 }

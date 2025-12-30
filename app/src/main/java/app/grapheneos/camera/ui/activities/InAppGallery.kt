@@ -3,7 +3,6 @@ package app.grapheneos.camera.ui.activities
 import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -52,6 +51,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.properties.Delegates
 
@@ -61,8 +61,8 @@ class InAppGallery : AppCompatActivity() {
     lateinit var gallerySlider: ViewPager2
     var gallerySliderAdapter: GallerySliderAdapter? = null
 
-    val asyncLoaderOfCapturedItems = Executors.newSingleThreadExecutor()
-    val asyncImageLoader = Executors.newSingleThreadExecutor()
+    val asyncLoaderOfCapturedItems: ExecutorService? = Executors.newSingleThreadExecutor()
+    val asyncImageLoader: ExecutorService? = Executors.newSingleThreadExecutor()
 
     private lateinit var snackBar: Snackbar
     private var ogColor by Delegates.notNull<Int>()
@@ -201,7 +201,7 @@ class InAppGallery : AppCompatActivity() {
         if (withDefault) {
             try {
                 startActivity(editIntent)
-            } catch (ignored: ActivityNotFoundException) {
+            } catch (_: ActivityNotFoundException) {
                 showMessage(getString(R.string.no_editor_app_error))
             }
         } else {
@@ -223,10 +223,10 @@ class InAppGallery : AppCompatActivity() {
 
                 val uri = curItem.uri
                 try {
-                    if (uri.authority == MediaStore.AUTHORITY) {
-                        res = contentResolver.delete(uri, null, null) > 0
+                    res = if (uri.authority == MediaStore.AUTHORITY) {
+                        contentResolver.delete(uri, null, null) > 0
                     } else {
-                        res = DocumentsContract.deleteDocument(contentResolver, uri)
+                        DocumentsContract.deleteDocument(contentResolver, uri)
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -315,7 +315,7 @@ class InAppGallery : AppCompatActivity() {
         detailsBuilder.append("\n\n")
 
         detailsBuilder.append(getString(R.string.file_path), "\n")
-        detailsBuilder.append(getRelativePath(this, curItem.uri, relativePath, fileName!!))
+        detailsBuilder.append(getRelativePath(this, curItem.uri, relativePath, fileName))
         detailsBuilder.append("\n\n")
 
         detailsBuilder.append(getString(R.string.file_size), "\n")
@@ -324,6 +324,7 @@ class InAppGallery : AppCompatActivity() {
         } else {
             detailsBuilder.append(
                 String.format(
+                    Locale.getDefault(),
                     "%.2f",
                     (size / (1000f * 1000f))
                 )
@@ -477,7 +478,7 @@ class InAppGallery : AppCompatActivity() {
             val systemBars =
                 insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.systemBars())
             view.y = -systemBars.bottom.toFloat()
-            snackBar.setAnchorView(view)
+            snackBar.anchorView = view
             insets
         }
 
@@ -491,11 +492,11 @@ class InAppGallery : AppCompatActivity() {
         val listOfSecureModeCapturedItems = getParcelableArrayListExtra<CapturedItem>(
             intent, INTENT_KEY_LIST_OF_SECURE_MODE_CAPTURED_ITEMS)
 
-        asyncLoaderOfCapturedItems.execute {
+        asyncLoaderOfCapturedItems?.execute {
             val unprocessedItems: List<CapturedItem> = try {
                 CapturedItems.get(this)
-            } catch (e: InterruptedException) {
-                // activity was destroyed and exectutor.shutdownNow() was called, which interrupts
+            } catch (_: InterruptedException) {
+                // activity was destroyed and executor.shutdownNow() was called, which interrupts
                 // executor threads
                 return@execute
             }
@@ -564,7 +565,7 @@ class InAppGallery : AppCompatActivity() {
     fun setEmptyGalleryResult() {
         val resultIntent = Intent()
         resultIntent.putExtra(EMPTY_GALLERY, true)
-        setResult(Activity.RESULT_OK, resultIntent)
+        setResult(RESULT_OK, resultIntent)
     }
 
     fun asyncResultReady(items: ArrayList<CapturedItem>) {
@@ -651,8 +652,8 @@ class InAppGallery : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        asyncLoaderOfCapturedItems.shutdownNow()
-        asyncImageLoader.shutdownNow()
+        asyncLoaderOfCapturedItems?.shutdownNow()
+        asyncImageLoader?.shutdownNow()
         if (isSecureMode) {
             autoFinisher.stop()
         }

@@ -3,7 +3,6 @@ package app.grapheneos.camera.ui
 import android.content.Context
 import android.util.AttributeSet
 import android.view.ViewGroup
-import androidx.core.view.ViewCompat
 import app.grapheneos.camera.CameraMode
 import com.google.android.material.tabs.TabLayout
 

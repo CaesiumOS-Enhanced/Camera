@@ -24,7 +24,6 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.ToggleButton
@@ -45,7 +44,6 @@ import app.grapheneos.camera.ui.activities.MainActivity
 import app.grapheneos.camera.ui.activities.MoreSettings
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.materialswitch.MaterialSwitch
-import com.google.android.material.radiobutton.MaterialRadioButton
 import java.util.Collections
 import kotlin.math.max
 
@@ -68,7 +66,7 @@ class SettingsDialog(val mActivity: MainActivity, themedContext: Context) :
     private var captureResolutionSpinner: Spinner
     private lateinit var captureResolutionAdapter: ArrayAdapter<String>
     private var availableResolutions: List<android.util.Size> = emptyList()
-    private var aspectRatioForResolutions: Int? = null;
+    private var aspectRatioForResolutions: Int? = null
 
     var mScrollView: ScrollView
     var mScrollViewContent: View
@@ -303,7 +301,7 @@ class SettingsDialog(val mActivity: MainActivity, themedContext: Context) :
                     } else {
 
                         try {
-                            val durS = selectedOption.substring(0, selectedOption.length - 1)
+                            val durS = selectedOption.dropLast(1)
                             val dur = durS.toInt()
 
                             mActivity.timerDuration = dur
@@ -311,7 +309,7 @@ class SettingsDialog(val mActivity: MainActivity, themedContext: Context) :
                             mActivity.cbText.text = selectedOption
                             mActivity.cbText.visibility = View.VISIBLE
 
-                        } catch (exception: Exception) {
+                        } catch (_: Exception) {
 
                             mActivity.showMessage(
                                 getString(R.string.unexpected_error_while_setting_focus_timeout)
@@ -517,7 +515,7 @@ class SettingsDialog(val mActivity: MainActivity, themedContext: Context) :
     fun reloadResolutions() {
         if (aspectRatioForResolutions !== null && aspectRatioForResolutions?.equals(camConfig.aspectRatio) == true) {
             // Use cached data
-            return;
+            return
         }
 
         availableResolutions = camConfig.getAvailableImageResolutions()
@@ -527,7 +525,7 @@ class SettingsDialog(val mActivity: MainActivity, themedContext: Context) :
             titles.add("${size.width}x${size.height}")
         }
 
-        captureResolutionAdapter = ArrayAdapter<String>(
+        captureResolutionAdapter = ArrayAdapter(
             mActivity,
             android.R.layout.simple_spinner_item,
             titles
@@ -540,7 +538,7 @@ class SettingsDialog(val mActivity: MainActivity, themedContext: Context) :
         captureResolutionSpinner.adapter = captureResolutionAdapter
         captureResolutionSpinner.setSelection(resolutionToIndex(camConfig.captureResolution))
 
-        aspectRatioForResolutions = camConfig.aspectRatio;
+        aspectRatioForResolutions = camConfig.aspectRatio
     }
 
     fun updateFocusTimeout(selectedOption: String) {
@@ -550,12 +548,12 @@ class SettingsDialog(val mActivity: MainActivity, themedContext: Context) :
         } else {
 
             try {
-                val durS = selectedOption.substring(0, selectedOption.length - 1)
+                val durS = selectedOption.dropLast(1)
                 val dur = durS.toLong()
 
                 camConfig.focusTimeout = dur
 
-            } catch (exception: Exception) {
+            } catch (_: Exception) {
 
                 mActivity.showMessage(
                     getString(R.string.unexpected_error_while_setting_focus_timeout)
@@ -860,7 +858,7 @@ class SettingsDialog(val mActivity: MainActivity, themedContext: Context) :
 
         val titles = getAvailableQTitles()
 
-        vQAdapter = ArrayAdapter<String>(
+        vQAdapter = ArrayAdapter(
             mActivity,
             android.R.layout.simple_spinner_item,
             titles

@@ -16,10 +16,11 @@ import java.io.IOException
 import java.io.PrintStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.RejectedExecutionException
+import androidx.core.net.toUri
 
 fun Throwable.printStackTraceToString(): String {
     val baos = ByteArrayOutputStream(1000)
-    this.printStackTrace(PrintStream(baos));
+    this.printStackTrace(PrintStream(baos))
     return baos.toString()
 }
 
@@ -31,7 +32,7 @@ fun getTreeDocumentUri(treeUri: Uri): Uri {
 fun ExecutorService.executeIfAlive(r: Runnable) {
     try {
         execute(r)
-    } catch (ignored: RejectedExecutionException) {
+    } catch (_: RejectedExecutionException) {
         check(this.isShutdown)
     }
 }
@@ -41,13 +42,13 @@ fun storageLocationToUiString(ctx: Context, sl: String): String {
         return "${ctx.getString(R.string.main_storage)}/$DEFAULT_MEDIA_STORE_CAPTURE_PATH"
     }
 
-    val uri = Uri.parse(sl)
+    val uri = sl.toUri()
     val indexOfId = if (DocumentsContract.isDocumentUri(ctx, uri)) 3 else 1
     val locationId = uri.pathSegments[indexOfId]
 
     if (uri.host == SAF_URI_HOST_EXTERNAL_STORAGE) {
         val endOfVolumeId = locationId.lastIndexOf(':')
-        val volumeId = locationId.substring(0, endOfVolumeId)
+        val volumeId = locationId.take(endOfVolumeId)
 
         val volumeName = if (volumeId == "primary") {
             ctx.getString(R.string.main_storage)
@@ -72,7 +73,7 @@ fun storageLocationToUiString(ctx: Context, sl: String): String {
                 return it.getString(0)
             }
         }
-    } catch (ignored: Exception) {}
+    } catch (_: Exception) {}
 
     return locationId
 }

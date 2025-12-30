@@ -1,9 +1,9 @@
 package app.grapheneos.camera.capturer
 
 import android.annotation.SuppressLint
+import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.graphics.ImageFormat
 import android.graphics.Rect
@@ -39,6 +39,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import androidx.core.net.toUri
+import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
 
 // see com.android.externalstorage.ExternalStorageProvider and
 // com.android.internal.content.FileSystemProvider
@@ -71,8 +74,8 @@ class ImageSaver(
 ) : ImageCapture.OnImageCapturedCallback()
 {
     val captureTime = Date()
-    val contentResolver = appContext.contentResolver
-    val mainThreadExecutor = appContext.mainExecutor
+    val contentResolver: ContentResolver = appContext.contentResolver
+    val mainThreadExecutor: Executor? = appContext.mainExecutor
 
     private var isCancelled = false
 
@@ -81,7 +84,7 @@ class ImageSaver(
     }
 
     override fun onCaptureSuccess(image: ImageProxy) {
-        mainThreadExecutor.execute(imageCapturer::onCaptureSuccess)
+        mainThreadExecutor?.execute(imageCapturer::onCaptureSuccess)
 
         try {
             extractJpegBytes(image)
@@ -102,12 +105,16 @@ class ImageSaver(
             cropRect = if (ImageUtil.shouldCropImage(image)) image.cropRect else null
             val imageFormat = image.format
 
-            origJpegBytes = if (imageFormat == ImageFormat.JPEG) {
-                ImageUtil.jpegImageToJpegByteArray(image)
-            } else if (imageFormat == ImageFormat.YUV_420_888) {
-                ImageUtil.yuvImageToJpegByteArray(image, cropRect, jpegQuality, 0)
-            } else {
-                throw IllegalStateException("unknown imageFormat $imageFormat")
+            origJpegBytes = when (imageFormat) {
+                ImageFormat.JPEG -> {
+                    ImageUtil.jpegImageToJpegByteArray(image)
+                }
+                ImageFormat.YUV_420_888 -> {
+                    ImageUtil.yuvImageToJpegByteArray(image, cropRect, jpegQuality, 0)
+                }
+                else -> {
+                    throw IllegalStateException("unknown imageFormat $imageFormat")
+                }
             }
 
             shouldUseExifOrientation = ExifRotationAvailability().shouldUseExifOrientation(image)
@@ -131,7 +138,7 @@ class ImageSaver(
             return
         }
 
-        imageCapturer.mActivity.thumbnailLoaderExecutor.executeIfAlive(this::generateThumbnail)
+        imageCapturer.mActivity.thumbnailLoaderExecutor?.executeIfAlive(this::generateThumbnail)
     }
 
     private var cropRect: Rect? = null
@@ -206,7 +213,7 @@ class ImageSaver(
         logDuration(startOfWriting) {"image writing (saveToMediaStore: ${saveToMediaStore()})"}
 
         val capturedItem = CapturedItem(ITEM_TYPE_IMAGE, dateString(), uri)
-        mainThreadExecutor.execute { imageCapturer.onImageSaverSuccess(capturedItem) }
+        mainThreadExecutor?.execute { imageCapturer.onImageSaverSuccess(capturedItem) }
     }
 
     // based on EXIF update sequence in androidx.camera.core.ImageSaver#saveImageToTempFile(),
@@ -281,7 +288,7 @@ class ImageSaver(
             // reading from a ByteBuffer should never cause an IOException
             throw IllegalStateException("unable to generate a thumbnail", e)
         }
-        mainThreadExecutor.execute { imageCapturer.onThumbnailGenerated(bitmap) }
+        mainThreadExecutor?.execute { imageCapturer.onThumbnailGenerated(bitmap) }
     }
 
     fun saveToMediaStore() = storageLocation == CamConfig.SettingValues.Default.STORAGE_LOCATION
@@ -309,7 +316,7 @@ class ImageSaver(
             return contentResolver.insert(CamConfig.imageCollectionUri, cv)
         } else {
             try {
-                val treeUri = Uri.parse(storageLocation)
+                val treeUri = storageLocation.toUri()
                 val treeDocumentUri = getTreeDocumentUri(treeUri)
                 return DocumentsContract.createDocument(contentResolver, treeDocumentUri, mimeType(), fileName())!!
             } catch (e: Exception) {
@@ -331,7 +338,7 @@ class ImageSaver(
 
     // implementation of ImageCapture.OnImageCapturedCallback.onError
     override fun onError(exception: ImageCaptureException) {
-        mainThreadExecutor.execute {
+        mainThreadExecutor?.execute {
             if (isCancelled) return@execute
             imageCapturer.onCaptureError(exception)
         }
@@ -340,11 +347,11 @@ class ImageSaver(
     private var skipErrorDialog = false
 
     private fun handleError(e: ImageSaverException) {
-        mainThreadExecutor.execute { imageCapturer.onImageSaverError(e, skipErrorDialog) }
+        mainThreadExecutor?.execute { imageCapturer.onImageSaverError(e, skipErrorDialog) }
     }
 
     companion object {
-        val imageCaptureCallbackExecutor = Executors.newSingleThreadExecutor()
+        val imageCaptureCallbackExecutor: ExecutorService? = Executors.newSingleThreadExecutor()
         private val imageWriterExecutor = Executors.newSingleThreadExecutor()
 
         private const val TAG = "ImageSaver"

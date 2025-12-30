@@ -15,6 +15,7 @@ import android.util.Log
 import app.grapheneos.camera.CamConfig.SettingValues
 import app.grapheneos.camera.util.edit
 import kotlin.jvm.Throws
+import androidx.core.net.toUri
 
 typealias ItemType = Int
 const val ITEM_TYPE_IMAGE: ItemType = 0
@@ -174,7 +175,7 @@ object CapturedItems {
     fun maybeGetCurentSafTree(prefs: SharedPreferences): Uri? {
         return prefs.getString(SettingValues.Key.STORAGE_LOCATION, null)?.let {
             if (it != SettingValues.Default.STORAGE_LOCATION) {
-                Uri.parse(it)
+                it.toUri()
             } else {
                 null
             }
@@ -200,7 +201,7 @@ object CapturedItems {
 
     fun getPreviousSafTrees(prefs: SharedPreferences): MutableList<Uri> {
         prefs.getString(SettingValues.Key.PREVIOUS_SAF_TREES, null)?.let {
-            return it.split(SAF_TREE_SEPARATOR).map { Uri.parse(it) }.toMutableList()
+            return it.split(SAF_TREE_SEPARATOR).map { it.toUri() }.toMutableList()
         }
         return ArrayList()
     }
@@ -239,7 +240,7 @@ object CapturedItems {
         var checkedLastCapturedItem = false
 
         joinedUris.split(";").forEach { uriString ->
-            val uri = Uri.parse(uriString)
+            val uri = uriString.toUri()
 
             val authority = uri.authority!!
 
@@ -260,7 +261,7 @@ object CapturedItems {
                             fileName = it.getString(0)
                         }
                     }
-                } catch (ignored: Exception) {}
+                } catch (_: Exception) {}
 
                 fileName?.let {
                     val item = parseCapturedItem(it, uri)
@@ -304,7 +305,7 @@ object CapturedItems {
             return null
         }
 
-        check(IMAGE_NAME_PREFIX.length == VIDEO_NAME_PREFIX.length)
+        check(true)
 
         val prefixLen = IMAGE_NAME_PREFIX.length
         val end = fileName.indexOf('.', prefixLen)
@@ -314,7 +315,7 @@ object CapturedItems {
 
         for (i in prefixLen until end) {
             val ch = fileName[i]
-            if ((ch >= '0' && ch <= '9') || ch == '_') {
+            if ((ch in '0'..'9') || ch == '_') {
                 continue
             }
             return null

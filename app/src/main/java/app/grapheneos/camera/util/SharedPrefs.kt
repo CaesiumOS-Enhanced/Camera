@@ -19,7 +19,7 @@ fun EphemeralSharedPrefsNamespace.getPrefs(ctx: Context, name: String, mode: Int
 
             if (cloneOriginal) {
                 val orig = ctx.applicationContext.getSharedPreferences(name, Context.MODE_PRIVATE)
-                orig.all.forEach { k, v ->
+                orig.all.forEach { (k, v) ->
                     prefs.map[k] = v
                 }
             }
@@ -58,13 +58,13 @@ class EphemeralSharedPrefs(val targetSdk: Int) : SharedPreferences {
 
     override fun edit(): SharedPreferences.Editor = Editor(this)
 
-    override fun registerOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?) {
+    override fun registerOnSharedPreferenceChangeListener(listener: ChangeListener?) {
         synchronized(this) {
             listeners[listener] = this
         }
     }
 
-    override fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?) {
+    override fun unregisterOnSharedPreferenceChangeListener(listener: ChangeListener?) {
         synchronized(this) {
             listeners.remove(listener)
         }
@@ -73,7 +73,7 @@ class EphemeralSharedPrefs(val targetSdk: Int) : SharedPreferences {
     private class Editor(val prefs: EphemeralSharedPrefs) : SharedPreferences.Editor {
         val map = HashMap<String, Any?>()
         private val removedKeys = arrayListOf<String>()
-        val thread = Thread.currentThread()
+        val thread: Thread = Thread.currentThread()
 
         private var cleared = false
 
@@ -124,7 +124,7 @@ class EphemeralSharedPrefs(val targetSdk: Int) : SharedPreferences {
                 removedKeys.forEach { key ->
                     prefs.map.remove(key)
                 }
-                map.forEach { k, v ->
+                map.forEach { (k, v) ->
                     prefs.map[k] = v
                 }
             }
@@ -144,7 +144,7 @@ class EphemeralSharedPrefs(val targetSdk: Int) : SharedPreferences {
                     it.onSharedPreferenceChanged(prefs, key)
                 }
             }
-            map.forEach { k, _ ->
+            map.forEach { (k, _) ->
                 listeners.forEach {
                     it.onSharedPreferenceChanged(prefs, k)
                 }

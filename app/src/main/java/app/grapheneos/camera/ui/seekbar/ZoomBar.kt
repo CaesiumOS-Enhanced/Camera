@@ -2,9 +2,7 @@ package app.grapheneos.camera.ui.seekbar
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
@@ -21,7 +19,10 @@ import androidx.transition.TransitionManager
 import app.grapheneos.camera.CamConfig
 import app.grapheneos.camera.R
 import app.grapheneos.camera.ui.activities.MainActivity
+import java.util.Locale
 import kotlin.math.roundToInt
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.drawable.toDrawable
 
 class ZoomBar : AppCompatSeekBar {
     constructor(context: Context) : super(context)
@@ -54,18 +55,18 @@ class ZoomBar : AppCompatSeekBar {
     }
 
     fun showPanel() {
-        togglePanel(View.VISIBLE)
+        togglePanel(VISIBLE)
         closePanelHandler.removeCallbacks(closePanelRunnable)
         closePanelHandler.postDelayed(closePanelRunnable, PANEL_VISIBILITY_DURATION)
     }
 
     private fun hidePanel() {
-        togglePanel(View.GONE)
+        togglePanel(GONE)
     }
 
     private fun togglePanel(visibility: Int) {
         val transition: Transition = Fade()
-        if (visibility == View.GONE) {
+        if (visibility == GONE) {
             transition.duration = 300
         } else {
             transition.duration = 0
@@ -104,21 +105,17 @@ class ZoomBar : AppCompatSeekBar {
 
         progress = (linearZoom * 100).roundToInt()
 
-        val textView: TextView = thumbView.findViewById(R.id.progress) as TextView
-        val text = String.format("%.1fx", zoomRatio)
+        val textView: TextView = thumbView.findViewById(R.id.progress)
+        val text = String.format(Locale.getDefault(), "%.1fx", zoomRatio)
 
         textView.text = text
 
         thumbView.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED)
-        val bitmap = Bitmap.createBitmap(
-            thumbView.measuredWidth,
-            thumbView.measuredHeight,
-            Bitmap.Config.ARGB_8888
-        )
+        val bitmap = createBitmap(thumbView.measuredWidth, thumbView.measuredHeight)
         val canvas = Canvas(bitmap)
         thumbView.layout(0, 0, thumbView.measuredWidth, thumbView.measuredHeight)
         thumbView.draw(canvas)
-        thumb = BitmapDrawable(resources, bitmap)
+        thumb = bitmap.toDrawable(resources)
         onSizeChanged(width, height, 0, 0)
     }
 

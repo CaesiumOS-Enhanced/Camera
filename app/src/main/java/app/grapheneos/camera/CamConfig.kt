@@ -59,7 +59,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.zxing.BarcodeFormat
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
-import kotlin.math.log
+import androidx.core.net.toUri
 
 // note that enum constant name is used as a name of a SharedPreferences instance
 enum class CameraMode(val extensionMode: Int, val uiName: Int) {
@@ -193,14 +193,6 @@ class CamConfig(private val mActivity: MainActivity) {
 
         const val DEFAULT_LENS_FACING = CameraSelector.LENS_FACING_BACK
 
-        fun aspectRatioToWidthHeight(aspectRatio: Int): Pair<Int, Int> {
-            return when (aspectRatio) {
-                AspectRatio.RATIO_16_9 -> Pair(16, 9)
-                AspectRatio.RATIO_4_3 -> Pair(4, 3)
-                else -> throw IllegalArgumentException("Unknown aspect ratio: $aspectRatio")
-            }
-        }
-
         val commonFormats = arrayOf(
             BarcodeFormat.AZTEC,
             BarcodeFormat.QR_CODE,
@@ -284,7 +276,7 @@ class CamConfig(private val mActivity: MainActivity) {
         if (dateStr != null && uri != null) {
             val skip = type == ITEM_TYPE_IMAGE && mActivity is VideoOnlyActivity
             if (!skip) {
-                item = CapturedItem(type, dateStr, Uri.parse(uri))
+                item = CapturedItem(type, dateStr, uri.toUri())
             }
         }
         lastCapturedItem = item
@@ -357,7 +349,7 @@ class CamConfig(private val mActivity: MainActivity) {
     var gridType: GridType = SettingValues.Default.GRID_TYPE
         set(value) {
             val editor = commonPref.edit()
-            editor.putInt(SettingValues.Key.GRID, GridType.values().indexOf(value))
+            editor.putInt(SettingValues.Key.GRID, GridType.entries.indexOf(value))
             editor.apply()
 
             field = value
@@ -540,7 +532,7 @@ class CamConfig(private val mActivity: MainActivity) {
         set(value) {
             val cur = storageLocation
             if (cur != SettingValues.Default.STORAGE_LOCATION) {
-                CapturedItems.savePreviousSafTree(Uri.parse(cur), commonPref)
+                CapturedItems.savePreviousSafTree(cur.toUri(), commonPref)
             }
 
             val editor = commonPref.edit()
@@ -624,12 +616,16 @@ class CamConfig(private val mActivity: MainActivity) {
     // Returns a multiplier value based on the
     val videoBitRateMultiplier : Int
         get() {
-            return if (videoBitRateUnit == "kb/s") {
-                1000
-            } else if (videoBitRateUnit == "mb/s") {
-                1000000
-            } else {
-                1
+            return when (videoBitRateUnit) {
+                "kb/s" -> {
+                    1000
+                }
+                "mb/s" -> {
+                    1000000
+                }
+                else -> {
+                    1
+                }
             }
         }
 
@@ -646,11 +642,6 @@ class CamConfig(private val mActivity: MainActivity) {
     fun isVideoStabilizationSupported() : Boolean {
         return isRecorderStabilizationSupported()
     }
-
-    private fun isPreviewStabilizationSupported() : Boolean {
-        return Preview.getPreviewCapabilities(getCurrentCameraInfo()).isStabilizationSupported
-    }
-
 
     private fun isRecorderStabilizationSupported() : Boolean {
         return Recorder.getVideoCapabilities(getCurrentCameraInfo()).isStabilizationSupported
@@ -914,7 +905,7 @@ class CamConfig(private val mActivity: MainActivity) {
         val qrRep = "${SettingValues.Key.SCAN}_${BarcodeFormat.QR_CODE.name}"
 
         if (!commonPref.contains(qrRep)) {
-            for (format in BarcodeFormat.values()) {
+            for (format in BarcodeFormat.entries) {
                 val formatSRep = "${SettingValues.Key.SCAN}_${format.name}"
 
                 editor.putBoolean(
@@ -929,10 +920,9 @@ class CamConfig(private val mActivity: MainActivity) {
             )
         }
 
-
         editor.apply()
 
-        gridType = GridType.values()[commonPref.getInt(
+        gridType = GridType.entries.toTypedArray()[commonPref.getInt(
             SettingValues.Key.GRID,
             SettingValues.Default.GRID_TYPE_INDEX
         )]
@@ -951,17 +941,17 @@ class CamConfig(private val mActivity: MainActivity) {
 
         includeAudio = commonPref.getBoolean(
             SettingValues.Key.INCLUDE_AUDIO,
-            SettingValues.Default.INCLUDE_AUDIO
+            true
         )
 
         enableEIS = commonPref.getBoolean(
             SettingValues.Key.ENABLE_EIS,
-            SettingValues.Default.ENABLE_EIS
+            true
         )
 
         allowedFormats.clear()
 
-        for (format in BarcodeFormat.values()) {
+        for (format in BarcodeFormat.entries) {
             val formatSRep = "${SettingValues.Key.SCAN}_${format.name}"
 
             val isEnabled = commonPref.getBoolean(
@@ -1015,7 +1005,7 @@ class CamConfig(private val mActivity: MainActivity) {
             return try {
                 val parts = value.split("x")
                 Size(parts[0].toInt(), parts[1].toInt())
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 null
             }
         }
@@ -1064,7 +1054,7 @@ class CamConfig(private val mActivity: MainActivity) {
         }
 
         if (photoQuality == 0) {
-            photoQuality = 95;
+            photoQuality = 95
         }
     }
 
@@ -1164,7 +1154,7 @@ class CamConfig(private val mActivity: MainActivity) {
         cameraProviderFuture.addListener(fun() {
             try {
                 cameraProvider = cameraProviderFuture.get()
-            } catch (e: ExecutionException) {
+            } catch (_: ExecutionException) {
                 mActivity.showMessage(mActivity.getString(R.string.camera_provider_init_failure))
                 return
             }
@@ -1185,7 +1175,7 @@ class CamConfig(private val mActivity: MainActivity) {
             extensionsManagerFuture.addListener({
                 try {
                     extensionsManager = extensionsManagerFuture.get()
-                } catch (e: ExecutionException) {
+                } catch (_: ExecutionException) {
                     mActivity.showMessage(mActivity.getString(R.string.extensions_manager_init_failure))
                 }
                 startCamera(forced = forced)
@@ -1206,7 +1196,7 @@ class CamConfig(private val mActivity: MainActivity) {
 
                 try {
                     tCameraSelector = em.getExtensionEnabledCameraSelector(tCameraSelector, currentMode.extensionMode)
-                } catch (e : IllegalArgumentException) {
+                } catch (_ : IllegalArgumentException) {
                     return false
                 }
             }
@@ -1363,7 +1353,7 @@ class CamConfig(private val mActivity: MainActivity) {
                             ?: rotation
                     )
 
-                    var resolutionSelectorBuilder = ResolutionSelector.Builder()
+                    val resolutionSelectorBuilder = ResolutionSelector.Builder()
                         .setAspectRatioStrategy(aspectRatioStrategy)
 
                     if (selectHighestResolution) {
@@ -1417,7 +1407,7 @@ class CamConfig(private val mActivity: MainActivity) {
 
         preview = previewBuilder.build().also {
             useCasesList.add(it)
-            it.setSurfaceProvider(mActivity.previewView.surfaceProvider)
+            it.surfaceProvider = mActivity.previewView.surfaceProvider
         }
 
         mActivity.forceUpdateOrientationSensor()
@@ -1473,7 +1463,7 @@ class CamConfig(private val mActivity: MainActivity) {
                     throw exception
                 }
             }
-        } catch (exception: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             mActivity.showMessage(mActivity.getString(R.string.bind_failure))
             return
         }
@@ -1687,7 +1677,7 @@ class CamConfig(private val mActivity: MainActivity) {
         val optionNames = arrayListOf<String>()
         val optionValues = arrayListOf<Boolean>()
 
-        for (format in BarcodeFormat.values()) {
+        for (format in BarcodeFormat.entries) {
 
             if (format in commonFormats) continue
 

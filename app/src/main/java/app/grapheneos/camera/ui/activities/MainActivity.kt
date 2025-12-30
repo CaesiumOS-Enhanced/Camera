@@ -5,7 +5,6 @@ import android.animation.Animator
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -97,7 +96,6 @@ import com.google.android.material.imageview.ShapeableImageView
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.zxing.BarcodeFormat
-import java.io.File
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -105,6 +103,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
+import androidx.core.view.isVisible
+import androidx.core.net.toUri
+import androidx.core.graphics.scale
+import java.util.concurrent.ExecutorService
 
 open class MainActivity : AppCompatActivity(),
     OnTouchListener,
@@ -214,7 +216,7 @@ open class MainActivity : AppCompatActivity(),
         hasGyroVibrated = true
     }
 
-    val thumbnailLoaderExecutor = Executors.newSingleThreadExecutor()
+    val thumbnailLoaderExecutor: ExecutorService? = Executors.newSingleThreadExecutor()
 
     private val runnable = Runnable {
         val factory: MeteringPointFactory = SurfaceOrientedMeteringPointFactory(
@@ -308,24 +310,6 @@ open class MainActivity : AppCompatActivity(),
                 Log.i(TAG, "Permission denied for camera.")
             }
         }
-    }
-
-    // Used to request permission from the user
-    var dirPicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult())
-    { result ->
-
-        val data: Uri? = result.data?.data
-
-        if (data?.encodedPath != null) {
-            val file = File(data.encodedPath!!)
-            if (file.exists()) {
-                showMessage(getString(R.string.file_already_exists, file.absolutePath))
-            } else {
-                showMessage(getString(R.string.file_does_not_exist, data.encodedPath))
-            }
-        }
-
-        Log.i(TAG, "Selected location: ${data?.encodedPath!!}")
     }
 
     private fun showAudioPermissionDeniedDialog(onDisableAudio: () -> Unit = {}) {
@@ -582,7 +566,7 @@ open class MainActivity : AppCompatActivity(),
         }
 
         // If the preview of video capture activity isn't showing
-        if (!(this is VideoCaptureActivity && thirdOption.visibility == View.VISIBLE)) {
+        if (!(this is VideoCaptureActivity && thirdOption.isVisible)) {
             if (!isQRDialogShowing) {
                 camConfig.initializeCamera(true)
             }
@@ -1173,7 +1157,7 @@ open class MainActivity : AppCompatActivity(),
             val tabLayout: TabLayout = dialogBinding.encodingTabs
             val textView = dialogBinding.scanResultText
 
-            val intentView = Intent(Intent.ACTION_VIEW, Uri.parse(rawText))
+            val intentView = Intent(Intent.ACTION_VIEW, rawText.toUri())
 
             if (packageManager.resolveActivity(intentView, 0L) != null) {
                 dialogBinding.openWith.setOnClickListener {
@@ -1217,7 +1201,7 @@ open class MainActivity : AppCompatActivity(),
             val ctc: ImageButton = dialogBinding.copyQrText
             ctc.setOnClickListener {
                 val clipboardManager = getSystemService(
-                    Context.CLIPBOARD_SERVICE
+                    CLIPBOARD_SERVICE
                 ) as ClipboardManager
                 val clipData = ClipData.newPlainText(
                     "text",
@@ -1266,7 +1250,7 @@ open class MainActivity : AppCompatActivity(),
 
             if (wasSwiping) {
                 wasSwiping = false
-                return wasSwiping
+                return false
             }
 
             if (isZooming) {
@@ -1594,8 +1578,6 @@ open class MainActivity : AppCompatActivity(),
             xDegrees
         }
 
-        val zAngle = zDegrees
-
         // If we are in photo mode and the countdown timer isn't running
         if (!(camConfig.isVideoMode || camConfig.isVideoMode || cdTimer.isRunning)) {
 
@@ -1622,21 +1604,21 @@ open class MainActivity : AppCompatActivity(),
                 }
             }
 
-            Log.i(TAG, "zAngle: $zAngle")
+            Log.i(TAG, "zAngle: $zDegrees")
 
             val lzAngle = when {
-                zAngle < -45 -> {
+                zDegrees < -45 -> {
                     -45
                 }
-                zAngle > 45 -> {
+                zDegrees > 45 -> {
                     45
                 }
                 else -> {
-                    zAngle
+                    zDegrees
                 }
             }.toFloat()
 
-            if (zAngle.toInt() == 0) {
+            if (zDegrees.toInt() == 0) {
                 gLineX.setBackgroundResource(R.drawable.yellow_shadow_rect)
                 gLineZ.visibility = View.GONE
 
@@ -1700,7 +1682,7 @@ open class MainActivity : AppCompatActivity(),
     override fun onDestroy() {
         super.onDestroy()
         SensorOrientationChangeNotifier.clearInstance()
-        thumbnailLoaderExecutor.shutdownNow()
+        thumbnailLoaderExecutor?.shutdownNow()
     }
 
     fun locationCamConfigChanged(required: Boolean) {
@@ -1812,7 +1794,7 @@ open class MainActivity : AppCompatActivity(),
 
         val ctx = applicationContext
 
-        thumbnailLoaderExecutor.executeIfAlive {
+        thumbnailLoaderExecutor?.executeIfAlive {
             var bitmap: Bitmap? = null
             try {
                 val side = preview.layoutParams.width
@@ -1824,7 +1806,7 @@ open class MainActivity : AppCompatActivity(),
                         val h = it.height.toDouble()
                         val ratio = max(w / side, h / side)
 
-                        bitmap = Bitmap.createScaledBitmap(it, (w / ratio).toInt(), (h / ratio).toInt(), true)
+                        bitmap = it.scale((w / ratio).toInt(), (h / ratio).toInt())
                         origBitmap.recycle()
                     }
                 } else if (item.type == ITEM_TYPE_IMAGE) {

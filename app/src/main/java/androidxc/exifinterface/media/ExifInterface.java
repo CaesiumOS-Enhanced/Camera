@@ -66,6 +66,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -75,6 +76,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
@@ -3024,8 +3026,8 @@ public class ExifInterface {
     private static final int WEBP_CHUNK_TYPE_BYTE_LENGTH = 4;
     private static final int WEBP_CHUNK_SIZE_BYTE_LENGTH = 4;
 
-    private static SimpleDateFormat sFormatterPrimary;
-    private static SimpleDateFormat sFormatterSecondary;
+    private static final SimpleDateFormat sFormatterPrimary;
+    private static final SimpleDateFormat sFormatterSecondary;
 
     // See Exchangeable image file format for digital still cameras: Exif version 2.2.
     // The following values are for parsing EXIF data area. There are tag groups in EXIF data area.
@@ -3074,411 +3076,394 @@ public class ExifInterface {
     };
 
     // A class for indicating EXIF rational type.
-    private static class Rational {
-        public final long numerator;
-        public final long denominator;
-
-        @SuppressWarnings("WeakerAccess") /* synthetic access */
-        Rational(double value) {
-            this((long) (value * 10000), 10000);
-        }
-
-        @SuppressWarnings("WeakerAccess") /* synthetic access */
-        Rational(long numerator, long denominator) {
-            // Handle erroneous case
-            if (denominator == 0) {
-                this.numerator = 0;
-                this.denominator = 1;
-                return;
+        private record Rational(long numerator, long denominator) {
+            @SuppressWarnings("WeakerAccess") /* synthetic access */
+            Rational(double value) {
+                this((long) (value * 10000), 10000);
             }
-            this.numerator = numerator;
-            this.denominator = denominator;
+    
+            @SuppressWarnings("WeakerAccess")
+            private /* synthetic access */
+            Rational(long numerator, long denominator) {
+                // Handle erroneous case
+                if (denominator == 0) {
+                    this.numerator = 0;
+                    this.denominator = 1;
+                    return;
+                }
+                this.numerator = numerator;
+                this.denominator = denominator;
+            }
+    
+            @NonNull
+            @Override
+            public String toString() {
+                return numerator + "/" + denominator;
+            }
+    
+            public double calculate() {
+                return (double) numerator / denominator;
+            }
         }
-
-        @Override
-        public String toString() {
-            return numerator + "/" + denominator;
-        }
-
-        public double calculate() {
-            return (double) numerator / denominator;
-        }
-    }
 
     // A class for indicating EXIF attribute.
-    private static class ExifAttribute {
-        public static final long BYTES_OFFSET_UNKNOWN = -1;
-
-        public final int format;
-        public final int numberOfComponents;
-        public final long bytesOffset;
-        public final byte[] bytes;
-
-        @SuppressWarnings("WeakerAccess") /* synthetic access */
-        ExifAttribute(int format, int numberOfComponents, byte[] bytes) {
-            this(format, numberOfComponents, BYTES_OFFSET_UNKNOWN, bytes);
-        }
-
-        @SuppressWarnings("WeakerAccess") /* synthetic access */
-        ExifAttribute(int format, int numberOfComponents, long bytesOffset, byte[] bytes) {
-            this.format = format;
-            this.numberOfComponents = numberOfComponents;
-            this.bytesOffset = bytesOffset;
-            this.bytes = bytes;
-        }
-
-        public static ExifAttribute createUShort(int[] values, ByteOrder byteOrder) {
-            final ByteBuffer buffer = ByteBuffer.wrap(
-                    new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_USHORT] * values.length]);
-            buffer.order(byteOrder);
-            for (int value : values) {
-                buffer.putShort((short) value);
+        private record ExifAttribute(int format, int numberOfComponents, long bytesOffset,
+                                     byte[] bytes) {
+            public static final long BYTES_OFFSET_UNKNOWN = -1;
+    
+            @SuppressWarnings("WeakerAccess") /* synthetic access */
+            ExifAttribute(int format, int numberOfComponents, byte[] bytes) {
+                this(format, numberOfComponents, BYTES_OFFSET_UNKNOWN, bytes);
             }
-            return new ExifAttribute(IFD_FORMAT_USHORT, values.length, buffer.array());
-        }
 
-        public static ExifAttribute createUShort(int value, ByteOrder byteOrder) {
-            return createUShort(new int[] {value}, byteOrder);
+        @SuppressWarnings("WeakerAccess")
+        private /* synthetic access */
+        ExifAttribute {
         }
-
-        public static ExifAttribute createULong(long[] values, ByteOrder byteOrder) {
-            final ByteBuffer buffer = ByteBuffer.wrap(
-                    new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_ULONG] * values.length]);
-            buffer.order(byteOrder);
-            for (long value : values) {
-                buffer.putInt((int) value);
+    
+            public static ExifAttribute createUShort(int[] values, ByteOrder byteOrder) {
+                final ByteBuffer buffer = ByteBuffer.wrap(
+                        new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_USHORT] * values.length]);
+                buffer.order(byteOrder);
+                for (int value : values) {
+                    buffer.putShort((short) value);
+                }
+                return new ExifAttribute(IFD_FORMAT_USHORT, values.length, buffer.array());
             }
-            return new ExifAttribute(IFD_FORMAT_ULONG, values.length, buffer.array());
-        }
-
-        public static ExifAttribute createULong(long value, ByteOrder byteOrder) {
-            return createULong(new long[] {value}, byteOrder);
-        }
-
-        public static ExifAttribute createSLong(int[] values, ByteOrder byteOrder) {
-            final ByteBuffer buffer = ByteBuffer.wrap(
-                    new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_SLONG] * values.length]);
-            buffer.order(byteOrder);
-            for (int value : values) {
-                buffer.putInt(value);
+    
+            public static ExifAttribute createUShort(int value, ByteOrder byteOrder) {
+                return createUShort(new int[]{value}, byteOrder);
             }
-            return new ExifAttribute(IFD_FORMAT_SLONG, values.length, buffer.array());
-        }
-
-        public static ExifAttribute createSLong(int value, ByteOrder byteOrder) {
-            return createSLong(new int[] {value}, byteOrder);
-        }
-
-        public static ExifAttribute createByte(String value) {
-            // Exception for GPSAltitudeRef tag
-            if (value.length() == 1 && value.charAt(0) >= '0' && value.charAt(0) <= '1') {
-                final byte[] bytes = new byte[] { (byte) (value.charAt(0) - '0') };
-                return new ExifAttribute(IFD_FORMAT_BYTE, bytes.length, bytes);
+    
+            public static ExifAttribute createULong(long[] values, ByteOrder byteOrder) {
+                final ByteBuffer buffer = ByteBuffer.wrap(
+                        new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_ULONG] * values.length]);
+                buffer.order(byteOrder);
+                for (long value : values) {
+                    buffer.putInt((int) value);
+                }
+                return new ExifAttribute(IFD_FORMAT_ULONG, values.length, buffer.array());
             }
-            final byte[] ascii = value.getBytes(ASCII);
-            return new ExifAttribute(IFD_FORMAT_BYTE, ascii.length, ascii);
-        }
-
-        public static ExifAttribute createString(String value) {
-            final byte[] ascii = (value + '\0').getBytes(ASCII);
-            return new ExifAttribute(IFD_FORMAT_STRING, ascii.length, ascii);
-        }
-
-        public static ExifAttribute createURational(Rational[] values, ByteOrder byteOrder) {
-            final ByteBuffer buffer = ByteBuffer.wrap(
-                    new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_URATIONAL] * values.length]);
-            buffer.order(byteOrder);
-            for (Rational value : values) {
-                buffer.putInt((int) value.numerator);
-                buffer.putInt((int) value.denominator);
+    
+            public static ExifAttribute createULong(long value, ByteOrder byteOrder) {
+                return createULong(new long[]{value}, byteOrder);
             }
-            return new ExifAttribute(IFD_FORMAT_URATIONAL, values.length, buffer.array());
-        }
-
-        public static ExifAttribute createURational(Rational value, ByteOrder byteOrder) {
-            return createURational(new Rational[] {value}, byteOrder);
-        }
-
-        public static ExifAttribute createSRational(Rational[] values, ByteOrder byteOrder) {
-            final ByteBuffer buffer = ByteBuffer.wrap(
-                    new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_SRATIONAL] * values.length]);
-            buffer.order(byteOrder);
-            for (Rational value : values) {
-                buffer.putInt((int) value.numerator);
-                buffer.putInt((int) value.denominator);
+    
+            public static ExifAttribute createSLong(int[] values, ByteOrder byteOrder) {
+                final ByteBuffer buffer = ByteBuffer.wrap(
+                        new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_SLONG] * values.length]);
+                buffer.order(byteOrder);
+                for (int value : values) {
+                    buffer.putInt(value);
+                }
+                return new ExifAttribute(IFD_FORMAT_SLONG, values.length, buffer.array());
             }
-            return new ExifAttribute(IFD_FORMAT_SRATIONAL, values.length, buffer.array());
-        }
-
-        public static ExifAttribute createSRational(Rational value, ByteOrder byteOrder) {
-            return createSRational(new Rational[] {value}, byteOrder);
-        }
-
-        public static ExifAttribute createDouble(double[] values, ByteOrder byteOrder) {
-            final ByteBuffer buffer = ByteBuffer.wrap(
-                    new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_DOUBLE] * values.length]);
-            buffer.order(byteOrder);
-            for (double value : values) {
-                buffer.putDouble(value);
+    
+            public static ExifAttribute createSLong(int value, ByteOrder byteOrder) {
+                return createSLong(new int[]{value}, byteOrder);
             }
-            return new ExifAttribute(IFD_FORMAT_DOUBLE, values.length, buffer.array());
-        }
-
-        public static ExifAttribute createDouble(double value, ByteOrder byteOrder) {
-            return createDouble(new double[] {value}, byteOrder);
-        }
-
-        @Override
-        public String toString() {
-            return "(" + IFD_FORMAT_NAMES[format] + ", data length:" + bytes.length + ")";
-        }
-
-        @SuppressWarnings("WeakerAccess") /* synthetic access */
-        Object getValue(ByteOrder byteOrder) {
-            ByteOrderedDataInputStream inputStream = null;
-            try {
-                inputStream = new ByteOrderedDataInputStream(bytes);
-                inputStream.setByteOrder(byteOrder);
-                switch (format) {
-                    case IFD_FORMAT_BYTE:
-                    case IFD_FORMAT_SBYTE: {
-                        // Exception for GPSAltitudeRef tag
-                        if (bytes.length == 1 && bytes[0] >= 0 && bytes[0] <= 1) {
-                            return new String(new char[] { (char) (bytes[0] + '0') });
+    
+            public static ExifAttribute createByte(String value) {
+                // Exception for GPSAltitudeRef tag
+                if (value.length() == 1 && value.charAt(0) >= '0' && value.charAt(0) <= '1') {
+                    final byte[] bytes = new byte[]{(byte) (value.charAt(0) - '0')};
+                    return new ExifAttribute(IFD_FORMAT_BYTE, bytes.length, bytes);
+                }
+                final byte[] ascii = value.getBytes(ASCII);
+                return new ExifAttribute(IFD_FORMAT_BYTE, ascii.length, ascii);
+            }
+    
+            public static ExifAttribute createString(String value) {
+                final byte[] ascii = (value + '\0').getBytes(ASCII);
+                return new ExifAttribute(IFD_FORMAT_STRING, ascii.length, ascii);
+            }
+    
+            public static ExifAttribute createURational(Rational[] values, ByteOrder byteOrder) {
+                final ByteBuffer buffer = ByteBuffer.wrap(
+                        new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_URATIONAL] * values.length]);
+                buffer.order(byteOrder);
+                for (Rational value : values) {
+                    buffer.putInt((int) value.numerator);
+                    buffer.putInt((int) value.denominator);
+                }
+                return new ExifAttribute(IFD_FORMAT_URATIONAL, values.length, buffer.array());
+            }
+    
+            public static ExifAttribute createURational(Rational value, ByteOrder byteOrder) {
+                return createURational(new Rational[]{value}, byteOrder);
+            }
+    
+            public static ExifAttribute createSRational(Rational[] values, ByteOrder byteOrder) {
+                final ByteBuffer buffer = ByteBuffer.wrap(
+                        new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_SRATIONAL] * values.length]);
+                buffer.order(byteOrder);
+                for (Rational value : values) {
+                    buffer.putInt((int) value.numerator);
+                    buffer.putInt((int) value.denominator);
+                }
+                return new ExifAttribute(IFD_FORMAT_SRATIONAL, values.length, buffer.array());
+            }
+    
+            public static ExifAttribute createSRational(Rational value, ByteOrder byteOrder) {
+                return createSRational(new Rational[]{value}, byteOrder);
+            }
+    
+            public static ExifAttribute createDouble(double[] values, ByteOrder byteOrder) {
+                final ByteBuffer buffer = ByteBuffer.wrap(
+                        new byte[IFD_FORMAT_BYTES_PER_FORMAT[IFD_FORMAT_DOUBLE] * values.length]);
+                buffer.order(byteOrder);
+                for (double value : values) {
+                    buffer.putDouble(value);
+                }
+                return new ExifAttribute(IFD_FORMAT_DOUBLE, values.length, buffer.array());
+            }
+    
+            public static ExifAttribute createDouble(double value, ByteOrder byteOrder) {
+                return createDouble(new double[]{value}, byteOrder);
+            }
+    
+            @NonNull
+            @Override
+            public String toString() {
+                return "(" + IFD_FORMAT_NAMES[format] + ", data length:" + bytes.length + ")";
+            }
+    
+            @SuppressWarnings("WeakerAccess") /* synthetic access */
+            Object getValue(ByteOrder byteOrder) {
+                try (ByteOrderedDataInputStream inputStream = new ByteOrderedDataInputStream(bytes)) {
+                    inputStream.setByteOrder(byteOrder);
+                    switch (format) {
+                        case IFD_FORMAT_BYTE:
+                        case IFD_FORMAT_SBYTE: {
+                            // Exception for GPSAltitudeRef tag
+                            if (bytes.length == 1 && bytes[0] >= 0 && bytes[0] <= 1) {
+                                return String.valueOf((char) (bytes[0] + '0'));
+                            }
+                            return new String(bytes, ASCII);
                         }
-                        return new String(bytes, ASCII);
-                    }
-                    case IFD_FORMAT_UNDEFINED:
-                    case IFD_FORMAT_STRING: {
-                        int index = 0;
-                        if (numberOfComponents >= EXIF_ASCII_PREFIX.length) {
-                            boolean same = true;
-                            for (int i = 0; i < EXIF_ASCII_PREFIX.length; ++i) {
-                                if (bytes[i] != EXIF_ASCII_PREFIX[i]) {
-                                    same = false;
-                                    break;
+                        case IFD_FORMAT_UNDEFINED:
+                        case IFD_FORMAT_STRING: {
+                            int index = 0;
+                            if (numberOfComponents >= EXIF_ASCII_PREFIX.length) {
+                                boolean same = true;
+                                for (int i = 0; i < EXIF_ASCII_PREFIX.length; ++i) {
+                                    if (bytes[i] != EXIF_ASCII_PREFIX[i]) {
+                                        same = false;
+                                        break;
+                                    }
+                                }
+                                if (same) {
+                                    index = EXIF_ASCII_PREFIX.length;
                                 }
                             }
-                            if (same) {
-                                index = EXIF_ASCII_PREFIX.length;
+    
+                            StringBuilder stringBuilder = new StringBuilder();
+                            while (index < numberOfComponents) {
+                                int ch = bytes[index];
+                                if (ch == 0) {
+                                    break;
+                                }
+                                if (ch >= 32) {
+                                    stringBuilder.append((char) ch);
+                                } else {
+                                    stringBuilder.append('?');
+                                }
+                                ++index;
                             }
+                            return stringBuilder.toString();
                         }
-
-                        StringBuilder stringBuilder = new StringBuilder();
-                        while (index < numberOfComponents) {
-                            int ch = bytes[index];
-                            if (ch == 0) {
-                                break;
+                        case IFD_FORMAT_USHORT: {
+                            final int[] values = new int[numberOfComponents];
+                            for (int i = 0; i < numberOfComponents; ++i) {
+                                values[i] = inputStream.readUnsignedShort();
                             }
-                            if (ch >= 32) {
-                                stringBuilder.append((char) ch);
-                            } else {
-                                stringBuilder.append('?');
+                            return values;
+                        }
+                        case IFD_FORMAT_ULONG: {
+                            final long[] values = new long[numberOfComponents];
+                            for (int i = 0; i < numberOfComponents; ++i) {
+                                values[i] = inputStream.readUnsignedInt();
                             }
-                            ++index;
+                            return values;
+                        }
+                        case IFD_FORMAT_URATIONAL: {
+                            final Rational[] values = new Rational[numberOfComponents];
+                            for (int i = 0; i < numberOfComponents; ++i) {
+                                final long numerator = inputStream.readUnsignedInt();
+                                final long denominator = inputStream.readUnsignedInt();
+                                values[i] = new Rational(numerator, denominator);
+                            }
+                            return values;
+                        }
+                        case IFD_FORMAT_SSHORT: {
+                            final int[] values = new int[numberOfComponents];
+                            for (int i = 0; i < numberOfComponents; ++i) {
+                                values[i] = inputStream.readShort();
+                            }
+                            return values;
+                        }
+                        case IFD_FORMAT_SLONG: {
+                            final int[] values = new int[numberOfComponents];
+                            for (int i = 0; i < numberOfComponents; ++i) {
+                                values[i] = inputStream.readInt();
+                            }
+                            return values;
+                        }
+                        case IFD_FORMAT_SRATIONAL: {
+                            final Rational[] values = new Rational[numberOfComponents];
+                            for (int i = 0; i < numberOfComponents; ++i) {
+                                final long numerator = inputStream.readInt();
+                                final long denominator = inputStream.readInt();
+                                values[i] = new Rational(numerator, denominator);
+                            }
+                            return values;
+                        }
+                        case IFD_FORMAT_SINGLE: {
+                            final double[] values = new double[numberOfComponents];
+                            for (int i = 0; i < numberOfComponents; ++i) {
+                                values[i] = inputStream.readFloat();
+                            }
+                            return values;
+                        }
+                        case IFD_FORMAT_DOUBLE: {
+                            final double[] values = new double[numberOfComponents];
+                            for (int i = 0; i < numberOfComponents; ++i) {
+                                values[i] = inputStream.readDouble();
+                            }
+                            return values;
+                        }
+                        default:
+                            return null;
+                    }
+                } catch (IOException e) {
+                    Log.w(TAG, "IOException occurred during reading a value", e);
+                    return null;
+                }
+            }
+    
+            public double getDoubleValue(ByteOrder byteOrder) {
+                Object value = getValue(byteOrder);
+                switch (value) {
+                    case null ->
+                            throw new NumberFormatException("NULL can't be converted to a double value");
+                    case String s -> {
+                        return Double.parseDouble(s);
+                    }
+                    case long[] array -> {
+                        if (array.length == 1) {
+                            return array[0];
+                        }
+                        throw new NumberFormatException("There are more than one component");
+                    }
+                    case int[] array -> {
+                        if (array.length == 1) {
+                            return array[0];
+                        }
+                        throw new NumberFormatException("There are more than one component");
+                    }
+                    case double[] array -> {
+                        if (array.length == 1) {
+                            return array[0];
+                        }
+                        throw new NumberFormatException("There are more than one component");
+                    }
+                    case Rational[] array -> {
+                        if (array.length == 1) {
+                            return array[0].calculate();
+                        }
+                        throw new NumberFormatException("There are more than one component");
+                    }
+                    default -> {
+                    }
+                }
+                throw new NumberFormatException("Couldn't find a double value");
+            }
+    
+            public int getIntValue(ByteOrder byteOrder) {
+                Object value = getValue(byteOrder);
+                switch (value) {
+                    case null ->
+                            throw new NumberFormatException("NULL can't be converted to a integer value");
+                    case String s -> {
+                        return Integer.parseInt(s);
+                    }
+                    case long[] array -> {
+                        if (array.length == 1) {
+                            return (int) array[0];
+                        }
+                        throw new NumberFormatException("There are more than one component");
+                    }
+                    case int[] array -> {
+                        if (array.length == 1) {
+                            return array[0];
+                        }
+                        throw new NumberFormatException("There are more than one component");
+                    }
+                    default -> {
+                    }
+                }
+                throw new NumberFormatException("Couldn't find a integer value");
+            }
+    
+            public String getStringValue(ByteOrder byteOrder) {
+                Object value = getValue(byteOrder);
+                if (value == null) {
+                    return null;
+                }
+                if (value instanceof String) {
+                    return (String) value;
+                }
+    
+                final StringBuilder stringBuilder = new StringBuilder();
+                switch (value) {
+                    case long[] array -> {
+                        for (int i = 0; i < array.length; ++i) {
+                            stringBuilder.append(array[i]);
+                            if (i + 1 != array.length) {
+                                stringBuilder.append(",");
+                            }
                         }
                         return stringBuilder.toString();
                     }
-                    case IFD_FORMAT_USHORT: {
-                        final int[] values = new int[numberOfComponents];
-                        for (int i = 0; i < numberOfComponents; ++i) {
-                            values[i] = inputStream.readUnsignedShort();
+                    case int[] array -> {
+                        for (int i = 0; i < array.length; ++i) {
+                            stringBuilder.append(array[i]);
+                            if (i + 1 != array.length) {
+                                stringBuilder.append(",");
+                            }
                         }
-                        return values;
+                        return stringBuilder.toString();
                     }
-                    case IFD_FORMAT_ULONG: {
-                        final long[] values = new long[numberOfComponents];
-                        for (int i = 0; i < numberOfComponents; ++i) {
-                            values[i] = inputStream.readUnsignedInt();
+                    case double[] array -> {
+                        for (int i = 0; i < array.length; ++i) {
+                            stringBuilder.append(array[i]);
+                            if (i + 1 != array.length) {
+                                stringBuilder.append(",");
+                            }
                         }
-                        return values;
+                        return stringBuilder.toString();
                     }
-                    case IFD_FORMAT_URATIONAL: {
-                        final Rational[] values = new Rational[numberOfComponents];
-                        for (int i = 0; i < numberOfComponents; ++i) {
-                            final long numerator = inputStream.readUnsignedInt();
-                            final long denominator = inputStream.readUnsignedInt();
-                            values[i] = new Rational(numerator, denominator);
+                    case Rational[] array -> {
+                        for (int i = 0; i < array.length; ++i) {
+                            stringBuilder.append(array[i].numerator);
+                            stringBuilder.append('/');
+                            stringBuilder.append(array[i].denominator);
+                            if (i + 1 != array.length) {
+                                stringBuilder.append(",");
+                            }
                         }
-                        return values;
+                        return stringBuilder.toString();
                     }
-                    case IFD_FORMAT_SSHORT: {
-                        final int[] values = new int[numberOfComponents];
-                        for (int i = 0; i < numberOfComponents; ++i) {
-                            values[i] = inputStream.readShort();
-                        }
-                        return values;
-                    }
-                    case IFD_FORMAT_SLONG: {
-                        final int[] values = new int[numberOfComponents];
-                        for (int i = 0; i < numberOfComponents; ++i) {
-                            values[i] = inputStream.readInt();
-                        }
-                        return values;
-                    }
-                    case IFD_FORMAT_SRATIONAL: {
-                        final Rational[] values = new Rational[numberOfComponents];
-                        for (int i = 0; i < numberOfComponents; ++i) {
-                            final long numerator = inputStream.readInt();
-                            final long denominator = inputStream.readInt();
-                            values[i] = new Rational(numerator, denominator);
-                        }
-                        return values;
-                    }
-                    case IFD_FORMAT_SINGLE: {
-                        final double[] values = new double[numberOfComponents];
-                        for (int i = 0; i < numberOfComponents; ++i) {
-                            values[i] = inputStream.readFloat();
-                        }
-                        return values;
-                    }
-                    case IFD_FORMAT_DOUBLE: {
-                        final double[] values = new double[numberOfComponents];
-                        for (int i = 0; i < numberOfComponents; ++i) {
-                            values[i] = inputStream.readDouble();
-                        }
-                        return values;
-                    }
-                    default:
-                        return null;
-                }
-            } catch (IOException e) {
-                Log.w(TAG, "IOException occurred during reading a value", e);
-                return null;
-            } finally {
-                if (inputStream != null) {
-                    try {
-                        inputStream.close();
-                    } catch (IOException e) {
-                        Log.e(TAG, "IOException occurred while closing InputStream", e);
+                    default -> {
                     }
                 }
-            }
-        }
-
-        public double getDoubleValue(ByteOrder byteOrder) {
-            Object value = getValue(byteOrder);
-            if (value == null) {
-                throw new NumberFormatException("NULL can't be converted to a double value");
-            }
-            if (value instanceof String) {
-                return Double.parseDouble((String) value);
-            }
-            if (value instanceof long[]) {
-                long[] array = (long[]) value;
-                if (array.length == 1) {
-                    return array[0];
-                }
-                throw new NumberFormatException("There are more than one component");
-            }
-            if (value instanceof int[]) {
-                int[] array = (int[]) value;
-                if (array.length == 1) {
-                    return array[0];
-                }
-                throw new NumberFormatException("There are more than one component");
-            }
-            if (value instanceof double[]) {
-                double[] array = (double[]) value;
-                if (array.length == 1) {
-                    return array[0];
-                }
-                throw new NumberFormatException("There are more than one component");
-            }
-            if (value instanceof Rational[]) {
-                Rational[] array = (Rational[]) value;
-                if (array.length == 1) {
-                    return array[0].calculate();
-                }
-                throw new NumberFormatException("There are more than one component");
-            }
-            throw new NumberFormatException("Couldn't find a double value");
-        }
-
-        public int getIntValue(ByteOrder byteOrder) {
-            Object value = getValue(byteOrder);
-            if (value == null) {
-                throw new NumberFormatException("NULL can't be converted to a integer value");
-            }
-            if (value instanceof String) {
-                return Integer.parseInt((String) value);
-            }
-            if (value instanceof long[]) {
-                long[] array = (long[]) value;
-                if (array.length == 1) {
-                    return (int) array[0];
-                }
-                throw new NumberFormatException("There are more than one component");
-            }
-            if (value instanceof int[]) {
-                int[] array = (int[]) value;
-                if (array.length == 1) {
-                    return array[0];
-                }
-                throw new NumberFormatException("There are more than one component");
-            }
-            throw new NumberFormatException("Couldn't find a integer value");
-        }
-
-        public String getStringValue(ByteOrder byteOrder) {
-            Object value = getValue(byteOrder);
-            if (value == null) {
                 return null;
             }
-            if (value instanceof String) {
-                return (String) value;
+    
+            public int size() {
+                return IFD_FORMAT_BYTES_PER_FORMAT[format] * numberOfComponents;
             }
-
-            final StringBuilder stringBuilder = new StringBuilder();
-            if (value instanceof long[]) {
-                long[] array = (long[]) value;
-                for (int i = 0; i < array.length; ++i) {
-                    stringBuilder.append(array[i]);
-                    if (i + 1 != array.length) {
-                        stringBuilder.append(",");
-                    }
-                }
-                return stringBuilder.toString();
-            }
-            if (value instanceof int[]) {
-                int[] array = (int[]) value;
-                for (int i = 0; i < array.length; ++i) {
-                    stringBuilder.append(array[i]);
-                    if (i + 1 != array.length) {
-                        stringBuilder.append(",");
-                    }
-                }
-                return stringBuilder.toString();
-            }
-            if (value instanceof double[]) {
-                double[] array = (double[]) value;
-                for (int i = 0; i < array.length; ++i) {
-                    stringBuilder.append(array[i]);
-                    if (i + 1 != array.length) {
-                        stringBuilder.append(",");
-                    }
-                }
-                return stringBuilder.toString();
-            }
-            if (value instanceof Rational[]) {
-                Rational[] array = (Rational[]) value;
-                for (int i = 0; i < array.length; ++i) {
-                    stringBuilder.append(array[i].numerator);
-                    stringBuilder.append('/');
-                    stringBuilder.append(array[i].denominator);
-                    if (i + 1 != array.length) {
-                        stringBuilder.append(",");
-                    }
-                }
-                return stringBuilder.toString();
-            }
-            return null;
         }
-
-        public int size() {
-            return IFD_FORMAT_BYTES_PER_FORMAT[format] * numberOfComponents;
-        }
-    }
 
     // A class for indicating EXIF tag.
     static class ExifTag {
@@ -3515,11 +3500,8 @@ public class ExifInterface {
             } else if ((primaryFormat == IFD_FORMAT_SLONG || secondaryFormat == IFD_FORMAT_SLONG)
                     && format == IFD_FORMAT_SSHORT) {
                 return true;
-            } else if ((primaryFormat == IFD_FORMAT_DOUBLE || secondaryFormat == IFD_FORMAT_DOUBLE)
-                    && format == IFD_FORMAT_SINGLE) {
-                return true;
-            }
-            return false;
+            } else return (primaryFormat == IFD_FORMAT_DOUBLE || secondaryFormat == IFD_FORMAT_DOUBLE)
+                    && format == IFD_FORMAT_SINGLE;
         }
     }
 
@@ -3808,15 +3790,14 @@ public class ExifInterface {
             TAG_F_NUMBER, TAG_DIGITAL_ZOOM_RATIO, TAG_EXPOSURE_TIME, TAG_SUBJECT_DISTANCE,
             TAG_GPS_TIMESTAMP));
     // Mappings from tag number to IFD type for pointer tags.
-    @SuppressWarnings("unchecked")
-    private static final HashMap<Integer, Integer> sExifPointerTagMap = new HashMap();
+    private static final HashMap<Integer, Integer> sExifPointerTagMap = new HashMap<>();
 
     // See JPEG File Interchange Format Version 1.02.
     // The following values are defined for handling JPEG streams. In this implementation, we are
     // not only getting information from EXIF but also from some JPEG special segments such as
     // MARKER_COM for user comment and MARKER_SOFx for image width and height.
     @SuppressWarnings("WeakerAccess") /* synthetic access */
-    static final Charset ASCII = Charset.forName("US-ASCII");
+    static final Charset ASCII = StandardCharsets.US_ASCII;
     // Identifier for EXIF APP1 segment in JPEG
     static final byte[] IDENTIFIER_EXIF_APP1 = "Exif\0\0".getBytes(ASCII);
     // Identifier for XMP APP1 segment in JPEG
@@ -3894,7 +3875,7 @@ public class ExifInterface {
     private boolean mIsExifDataOnly;
     @SuppressWarnings("unchecked")
     private final HashMap<String, ExifAttribute>[] mAttributes = new HashMap[EXIF_TAGS.length];
-    private Set<Integer> mAttributesOffsets = new HashSet<>(EXIF_TAGS.length);
+    private final Set<Integer> mAttributesOffsets = new HashSet<>(EXIF_TAGS.length);
     private ByteOrder mExifByteOrder = BIG_ENDIAN;
     private boolean mHasThumbnail;
     private boolean mHasThumbnailStrips;
@@ -3907,8 +3888,6 @@ public class ExifInterface {
     // Used to indicate offset from the start of the original input stream to EXIF data
     private int mOffsetToExifData;
     private int mOrfMakerNoteOffset;
-    private int mOrfThumbnailOffset;
-    private int mOrfThumbnailLength;
     private boolean mModified;
     // XMP data can be contained as either part of the EXIF data (tag number 700), or as a
     // separate data marker (a separate MARKER_APP1).
@@ -4069,26 +4048,13 @@ public class ExifInterface {
             throw new NullPointerException("mimeType shouldn't be null");
         }
 
-        switch (mimeType.toLowerCase(Locale.ROOT)) {
-            case "image/jpeg":
-            case "image/x-adobe-dng":
-            case "image/x-canon-cr2":
-            case "image/x-nikon-nef":
-            case "image/x-nikon-nrw":
-            case "image/x-sony-arw":
-            case "image/x-panasonic-rw2":
-            case "image/x-olympus-orf":
-            case "image/x-pentax-pef":
-            case "image/x-samsung-srw":
-            case "image/x-fuji-raf":
-            case "image/heic":
-            case "image/heif":
-            case "image/png":
-            case "image/webp":
-                return true;
-            default:
-                return false;
-        }
+        return switch (mimeType.toLowerCase(Locale.ROOT)) {
+            case "image/jpeg", "image/x-adobe-dng", "image/x-canon-cr2", "image/x-nikon-nef",
+                 "image/x-nikon-nrw", "image/x-sony-arw", "image/x-panasonic-rw2",
+                 "image/x-olympus-orf", "image/x-pentax-pef", "image/x-samsung-srw",
+                 "image/x-fuji-raf", "image/heic", "image/heif", "image/png", "image/webp" -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -4261,8 +4227,8 @@ public class ExifInterface {
                     Log.w(TAG, "Invalid value for " + tag + " : " + value);
                     return;
                 }
-                value = Integer.parseInt(m.group(1)) + "/1," + Integer.parseInt(m.group(2)) + "/1,"
-                        + Integer.parseInt(m.group(3)) + "/1";
+                value = Integer.parseInt(Objects.requireNonNull(m.group(1))) + "/1," + Integer.parseInt(Objects.requireNonNull(m.group(2))) + "/1,"
+                        + Integer.parseInt(Objects.requireNonNull(m.group(3))) + "/1";
             } else {
                 try {
                     double doubleValue = Double.parseDouble(value);
@@ -4385,7 +4351,6 @@ public class ExifInterface {
                         if (DEBUG) {
                             Log.d(TAG, "Data format isn't one of expected formats: " + dataFormat);
                         }
-                        continue;
                 }
             }
         }
@@ -4434,37 +4399,17 @@ public class ExifInterface {
      */
     public void flipVertically() {
         int currentOrientation = getAttributeInt(TAG_ORIENTATION, ORIENTATION_NORMAL);
-        int resultOrientation;
-        switch (currentOrientation) {
-            case ORIENTATION_FLIP_HORIZONTAL:
-                resultOrientation = ORIENTATION_ROTATE_180;
-                break;
-            case ORIENTATION_ROTATE_180:
-                resultOrientation = ORIENTATION_FLIP_HORIZONTAL;
-                break;
-            case ORIENTATION_FLIP_VERTICAL:
-                resultOrientation = ORIENTATION_NORMAL;
-                break;
-            case ORIENTATION_TRANSPOSE:
-                resultOrientation = ORIENTATION_ROTATE_270;
-                break;
-            case ORIENTATION_ROTATE_90:
-                resultOrientation = ORIENTATION_TRANSVERSE;
-                break;
-            case ORIENTATION_TRANSVERSE:
-                resultOrientation = ORIENTATION_ROTATE_90;
-                break;
-            case ORIENTATION_ROTATE_270:
-                resultOrientation = ORIENTATION_TRANSPOSE;
-                break;
-            case ORIENTATION_NORMAL:
-                resultOrientation = ORIENTATION_FLIP_VERTICAL;
-                break;
-            case ORIENTATION_UNDEFINED:
-            default:
-                resultOrientation = ORIENTATION_UNDEFINED;
-                break;
-        }
+        int resultOrientation = switch (currentOrientation) {
+            case ORIENTATION_FLIP_HORIZONTAL -> ORIENTATION_ROTATE_180;
+            case ORIENTATION_ROTATE_180 -> ORIENTATION_FLIP_HORIZONTAL;
+            case ORIENTATION_FLIP_VERTICAL -> ORIENTATION_NORMAL;
+            case ORIENTATION_TRANSPOSE -> ORIENTATION_ROTATE_270;
+            case ORIENTATION_ROTATE_90 -> ORIENTATION_TRANSVERSE;
+            case ORIENTATION_TRANSVERSE -> ORIENTATION_ROTATE_90;
+            case ORIENTATION_ROTATE_270 -> ORIENTATION_TRANSPOSE;
+            case ORIENTATION_NORMAL -> ORIENTATION_FLIP_VERTICAL;
+            default -> ORIENTATION_UNDEFINED;
+        };
         setAttribute(TAG_ORIENTATION, Integer.toString(resultOrientation));
     }
 
@@ -4473,37 +4418,17 @@ public class ExifInterface {
      */
     public void flipHorizontally() {
         int currentOrientation = getAttributeInt(TAG_ORIENTATION, ORIENTATION_NORMAL);
-        int resultOrientation;
-        switch (currentOrientation) {
-            case ORIENTATION_FLIP_HORIZONTAL:
-                resultOrientation = ORIENTATION_NORMAL;
-                break;
-            case ORIENTATION_ROTATE_180:
-                resultOrientation = ORIENTATION_FLIP_VERTICAL;
-                break;
-            case ORIENTATION_FLIP_VERTICAL:
-                resultOrientation = ORIENTATION_ROTATE_180;
-                break;
-            case ORIENTATION_TRANSPOSE:
-                resultOrientation = ORIENTATION_ROTATE_90;
-                break;
-            case ORIENTATION_ROTATE_90:
-                resultOrientation = ORIENTATION_TRANSPOSE;
-                break;
-            case ORIENTATION_TRANSVERSE:
-                resultOrientation = ORIENTATION_ROTATE_270;
-                break;
-            case ORIENTATION_ROTATE_270:
-                resultOrientation = ORIENTATION_TRANSVERSE;
-                break;
-            case ORIENTATION_NORMAL:
-                resultOrientation = ORIENTATION_FLIP_HORIZONTAL;
-                break;
-            case ORIENTATION_UNDEFINED:
-            default:
-                resultOrientation = ORIENTATION_UNDEFINED;
-                break;
-        }
+        int resultOrientation = switch (currentOrientation) {
+            case ORIENTATION_FLIP_HORIZONTAL -> ORIENTATION_NORMAL;
+            case ORIENTATION_ROTATE_180 -> ORIENTATION_FLIP_VERTICAL;
+            case ORIENTATION_FLIP_VERTICAL -> ORIENTATION_ROTATE_180;
+            case ORIENTATION_TRANSPOSE -> ORIENTATION_ROTATE_90;
+            case ORIENTATION_ROTATE_90 -> ORIENTATION_TRANSPOSE;
+            case ORIENTATION_TRANSVERSE -> ORIENTATION_ROTATE_270;
+            case ORIENTATION_ROTATE_270 -> ORIENTATION_TRANSVERSE;
+            case ORIENTATION_NORMAL -> ORIENTATION_FLIP_HORIZONTAL;
+            default -> ORIENTATION_UNDEFINED;
+        };
         setAttribute(TAG_ORIENTATION, Integer.toString(resultOrientation));
     }
 
@@ -4514,15 +4439,11 @@ public class ExifInterface {
      */
     public boolean isFlipped() {
         int orientation = getAttributeInt(TAG_ORIENTATION, ORIENTATION_NORMAL);
-        switch (orientation) {
-            case ORIENTATION_FLIP_HORIZONTAL:
-            case ORIENTATION_TRANSVERSE:
-            case ORIENTATION_FLIP_VERTICAL:
-            case ORIENTATION_TRANSPOSE:
-                return true;
-            default:
-                return false;
-        }
+        return switch (orientation) {
+            case ORIENTATION_FLIP_HORIZONTAL, ORIENTATION_TRANSVERSE, ORIENTATION_FLIP_VERTICAL,
+                 ORIENTATION_TRANSPOSE -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -4538,22 +4459,12 @@ public class ExifInterface {
      */
     public int getRotationDegrees() {
         int orientation = getAttributeInt(TAG_ORIENTATION, ORIENTATION_NORMAL);
-        switch (orientation) {
-            case ORIENTATION_ROTATE_90:
-            case ORIENTATION_TRANSVERSE:
-                return 90;
-            case ORIENTATION_ROTATE_180:
-            case ORIENTATION_FLIP_VERTICAL:
-                return 180;
-            case ORIENTATION_ROTATE_270:
-            case ORIENTATION_TRANSPOSE:
-                return 270;
-            case ORIENTATION_UNDEFINED:
-            case ORIENTATION_NORMAL:
-            case ORIENTATION_FLIP_HORIZONTAL:
-            default:
-                return 0;
-        }
+        return switch (orientation) {
+            case ORIENTATION_ROTATE_90, ORIENTATION_TRANSVERSE -> 90;
+            case ORIENTATION_ROTATE_180, ORIENTATION_FLIP_VERTICAL -> 180;
+            case ORIENTATION_ROTATE_270, ORIENTATION_TRANSPOSE -> 270;
+            default -> 0;
+        };
     }
 
     /**
@@ -4639,7 +4550,7 @@ public class ExifInterface {
     private static boolean isSeekableFD(FileDescriptor fd) {
         if (Build.VERSION.SDK_INT >= 21) {
             try {
-                Api21Impl.lseek(fd, 0, OsConstants.SEEK_CUR);
+                Api21Impl.lseek(fd, OsConstants.SEEK_CUR);
                 return true;
             } catch (Exception e) {
                 if (DEBUG) {
@@ -4703,7 +4614,7 @@ public class ExifInterface {
 
         FileInputStream in = null;
         FileOutputStream out = null;
-        File tempFile = null;
+        File tempFile;
         try {
             // Copy the original file to temporary file.
             tempFile = File.createTempFile("temp", "tmp");
@@ -4713,11 +4624,12 @@ public class ExifInterface {
                 // mSeekableFileDescriptor will be non-null only for SDK_INT >= 21, but this check
                 // is needed to prevent calling Os.lseek at runtime for SDK < 21.
                 if (Build.VERSION.SDK_INT >= 21) {
-                    Api21Impl.lseek(mSeekableFileDescriptor, 0, OsConstants.SEEK_SET);
+                    Api21Impl.lseek(mSeekableFileDescriptor, OsConstants.SEEK_SET);
                     in = new FileInputStream(mSeekableFileDescriptor);
                 }
             }
             out = new FileOutputStream(tempFile);
+            assert in != null;
             copy(in, out);
         } catch (Exception e) {
             throw new IOException("Failed to copy original file to temp file", e);
@@ -4740,7 +4652,7 @@ public class ExifInterface {
                 // mSeekableFileDescriptor will be non-null only for SDK_INT >= 21, but this check
                 // is needed to prevent calling Os.lseek at runtime for SDK < 21.
                 if (Build.VERSION.SDK_INT >= 21) {
-                    Api21Impl.lseek(mSeekableFileDescriptor, 0, OsConstants.SEEK_SET);
+                    Api21Impl.lseek(mSeekableFileDescriptor, OsConstants.SEEK_SET);
                     out = new FileOutputStream(mSeekableFileDescriptor);
                 }
             }
@@ -4763,7 +4675,7 @@ public class ExifInterface {
                     // mSeekableFileDescriptor will be non-null only for SDK_INT >= 21, but this
                     // check is needed to prevent calling Os.lseek at runtime for SDK < 21.
                     if (Build.VERSION.SDK_INT >= 21) {
-                        Api21Impl.lseek(mSeekableFileDescriptor, 0, OsConstants.SEEK_SET);
+                        Api21Impl.lseek(mSeekableFileDescriptor, OsConstants.SEEK_SET);
                         out = new FileOutputStream(mSeekableFileDescriptor);
                     }
                 }
@@ -4881,7 +4793,7 @@ public class ExifInterface {
                 // is needed to prevent calling Os.lseek and Os.dup at runtime for SDK < 21.
                 if (Build.VERSION.SDK_INT >= 21) {
                     newFileDescriptor = Api21Impl.dup(mSeekableFileDescriptor);
-                    Api21Impl.lseek(newFileDescriptor, 0, OsConstants.SEEK_SET);
+                    Api21Impl.lseek(newFileDescriptor, OsConstants.SEEK_SET);
                     in = new FileInputStream(newFileDescriptor);
                 }
             }
@@ -4924,6 +4836,7 @@ public class ExifInterface {
         if (mThumbnailCompression == DATA_JPEG || mThumbnailCompression == DATA_JPEG_COMPRESSED) {
             return BitmapFactory.decodeByteArray(mThumbnailBytes, 0, mThumbnailLength);
         } else if (mThumbnailCompression == DATA_UNCOMPRESSED) {
+            assert mThumbnailBytes != null;
             int[] rgbValues = new int[mThumbnailBytes.length / 3];
             byte alpha = (byte) 0xff000000;
             for (int i = 0; i < rgbValues.length; i++) {
@@ -4953,10 +4866,7 @@ public class ExifInterface {
         if (!mHasThumbnail) {
             return false;
         }
-        if (mThumbnailCompression == DATA_JPEG || mThumbnailCompression == DATA_JPEG_COMPRESSED) {
-            return true;
-        }
-        return false;
+        return mThumbnailCompression == DATA_JPEG || mThumbnailCompression == DATA_JPEG_COMPRESSED;
     }
 
     /**
@@ -5042,7 +4952,7 @@ public class ExifInterface {
      * @deprecated Use {@link #getLatLong()} instead.
      */
     @Deprecated
-    public boolean getLatLong(float output[]) {
+    public boolean getLatLong(float[] output) {
         double[] latLong = getLatLong();
         if (latLong == null) {
             return false;
@@ -5170,12 +5080,12 @@ public class ExifInterface {
         }
 
         long subsec = timeStamp % 1000;
-        String subsecString = Long.toString(subsec);
+        StringBuilder subsecString = new StringBuilder(Long.toString(subsec));
         for (int i = subsecString.length(); i < 3; i++) {
-            subsecString = "0" + subsecString;
+            subsecString.insert(0, "0");
         }
         setAttribute(TAG_DATETIME, sFormatterPrimary.format(new Date(timeStamp)));
-        setAttribute(TAG_SUBSEC_TIME, subsecString);
+        setAttribute(TAG_SUBSEC_TIME, subsecString.toString());
     }
 
     /**
@@ -5260,7 +5170,7 @@ public class ExifInterface {
                 if (("+".equals(sign) || "-".equals(sign))
                         && ":".equals(offsetString.substring(3, 4))
                         && hour <= 14 /* max UTC hour value */) {
-                    msecs += (hour * 60 + min) * 60 * 1000 * ("-".equals(sign) ? 1 : -1);
+                    msecs += (hour * 60L + min) * 60 * 1000 * ("-".equals(sign) ? 1 : -1);
                 }
             }
 
@@ -5393,7 +5303,7 @@ public class ExifInterface {
      * This method looks at the first 3 bytes to determine if this file is a JPEG file.
      * See http://www.media.mit.edu/pia/Research/deepview/exif.html, "JPEG format and Marker"
      */
-    private static boolean isJpegFormat(byte[] signatureCheckBytes) throws IOException {
+    private static boolean isJpegFormat(byte[] signatureCheckBytes) {
         for (int i = 0; i < JPEG_SIGNATURE.length; i++) {
             if (signatureCheckBytes[i] != JPEG_SIGNATURE[i]) {
                 return false;
@@ -5408,7 +5318,7 @@ public class ExifInterface {
      * image file specifications:
      * http://fileformats.archiveteam.org/wiki/Fujifilm_RAF
      */
-    private boolean isRafFormat(byte[] signatureCheckBytes) throws IOException {
+    private boolean isRafFormat(byte[] signatureCheckBytes) {
         byte[] rafSignatureBytes = RAF_SIGNATURE.getBytes(Charset.defaultCharset());
         for (int i = 0; i < rafSignatureBytes.length; i++) {
             if (signatureCheckBytes[i] != rafSignatureBytes[i]) {
@@ -5418,10 +5328,8 @@ public class ExifInterface {
         return true;
     }
 
-    private boolean isHeifFormat(byte[] signatureCheckBytes) throws IOException {
-        ByteOrderedDataInputStream signatureInputStream = null;
-        try {
-            signatureInputStream = new ByteOrderedDataInputStream(signatureCheckBytes);
+    private boolean isHeifFormat(byte[] signatureCheckBytes) {
+        try (ByteOrderedDataInputStream signatureInputStream = new ByteOrderedDataInputStream(signatureCheckBytes)) {
 
             long chunkSize = signatureInputStream.readInt();
             byte[] chunkType = new byte[4];
@@ -5459,7 +5367,7 @@ public class ExifInterface {
             byte[] brand = new byte[4];
             boolean isMif1 = false;
             boolean isHeic = false;
-            for (long i = 0; i < chunkDataSize / 4;  ++i) {
+            for (long i = 0; i < chunkDataSize / 4; ++i) {
                 try {
                     signatureInputStream.readFully(brand);
                 } catch (EOFException e) {
@@ -5482,11 +5390,6 @@ public class ExifInterface {
             if (DEBUG) {
                 Log.d(TAG, "Exception parsing HEIF file type box.", e);
             }
-        } finally {
-            if (signatureInputStream != null) {
-                signatureInputStream.close();
-                signatureInputStream = null;
-            }
         }
         return false;
     }
@@ -5499,11 +5402,9 @@ public class ExifInterface {
      * of image file specifications:
      * http://fileformats.archiveteam.org/wiki/Olympus_ORF
      */
-    private boolean isOrfFormat(byte[] signatureCheckBytes) throws IOException {
-        ByteOrderedDataInputStream signatureInputStream = null;
+    private boolean isOrfFormat(byte[] signatureCheckBytes) {
 
-        try {
-            signatureInputStream = new ByteOrderedDataInputStream(signatureCheckBytes);
+        try (ByteOrderedDataInputStream signatureInputStream = new ByteOrderedDataInputStream(signatureCheckBytes)) {
 
             // Read byte order
             mExifByteOrder = readByteOrder(signatureInputStream);
@@ -5514,10 +5415,6 @@ public class ExifInterface {
             return orfSignature == ORF_SIGNATURE_1 || orfSignature == ORF_SIGNATURE_2;
         } catch (Exception e) {
             // Do nothing
-        } finally {
-            if (signatureInputStream != null) {
-                signatureInputStream.close();
-            }
         }
         return false;
     }
@@ -5526,11 +5423,9 @@ public class ExifInterface {
      * RW2 is TIFF-based, but stores 0x55 signature byte instead of 0x42 at the header
      * See http://lclevy.free.fr/raw/
      */
-    private boolean isRw2Format(byte[] signatureCheckBytes) throws IOException {
-        ByteOrderedDataInputStream signatureInputStream = null;
+    private boolean isRw2Format(byte[] signatureCheckBytes) {
 
-        try {
-            signatureInputStream = new ByteOrderedDataInputStream(signatureCheckBytes);
+        try (ByteOrderedDataInputStream signatureInputStream = new ByteOrderedDataInputStream(signatureCheckBytes)) {
 
             // Read byte order
             mExifByteOrder = readByteOrder(signatureInputStream);
@@ -5541,10 +5436,6 @@ public class ExifInterface {
             return signatureByte == RW2_SIGNATURE;
         } catch (Exception e) {
             // Do nothing
-        } finally {
-            if (signatureInputStream != null) {
-                signatureInputStream.close();
-            }
         }
         return false;
     }
@@ -5553,7 +5444,7 @@ public class ExifInterface {
      * PNG's file signature is first 8 bytes.
      * See PNG (Portable Network Graphics) Specification, Version 1.2, 3.1. PNG file signature
      */
-    private boolean isPngFormat(byte[] signatureCheckBytes) throws IOException {
+    private boolean isPngFormat(byte[] signatureCheckBytes) {
         for (int i = 0; i < PNG_SIGNATURE.length; i++) {
             if (signatureCheckBytes[i] != PNG_SIGNATURE[i]) {
                 return false;
@@ -5567,7 +5458,7 @@ public class ExifInterface {
      *   'RIFF' (4 bytes) + file length value (4 bytes) + 'WEBP' (4 bytes)
      * See https://developers.google.com/speed/webp/docs/riff_container, Section "WebP File Header"
      */
-    private boolean isWebpFormat(byte[] signatureCheckBytes) throws IOException {
+    private boolean isWebpFormat(byte[] signatureCheckBytes) {
         for (int i = 0; i < WEBP_SIGNATURE_1.length; i++) {
             if (signatureCheckBytes[i] != WEBP_SIGNATURE_1[i]) {
                 return false;
@@ -5753,7 +5644,7 @@ public class ExifInterface {
             // PEF files contain a MakerNote data, which contains the data for ColorSpace tag.
             // See http://lclevy.free.fr/raw/ and piex.cc PefGetPreviewData()
             ExifAttribute makerNoteAttribute =
-                    (ExifAttribute) mAttributes[IFD_TYPE_EXIF].get(TAG_MAKER_NOTE);
+                    mAttributes[IFD_TYPE_EXIF].get(TAG_MAKER_NOTE);
             if (makerNoteAttribute != null) {
                 // Create an ordered DataInputStream for MakerNote
                 SeekableByteOrderedDataInputStream makerNoteDataInputStream =
@@ -5768,7 +5659,7 @@ public class ExifInterface {
 
                 // Update ColorSpace tag
                 ExifAttribute colorSpaceAttribute =
-                        (ExifAttribute) mAttributes[IFD_TYPE_PEF].get(TAG_COLOR_SPACE);
+                        mAttributes[IFD_TYPE_PEF].get(TAG_COLOR_SPACE);
                 if (colorSpaceAttribute != null) {
                     mAttributes[IFD_TYPE_EXIF].put(TAG_COLOR_SPACE, colorSpaceAttribute);
                 }
@@ -5852,11 +5743,10 @@ public class ExifInterface {
                     long mPosition;
 
                     @Override
-                    public void close() throws IOException {}
+                    public void close() {}
 
                     @Override
-                    public int readAt(long position, byte[] buffer, int offset, int size)
-                            throws IOException {
+                    public int readAt(long position, byte[] buffer, int offset, int size) {
                         if (size == 0) {
                             return 0;
                         }
@@ -5896,7 +5786,7 @@ public class ExifInterface {
                     }
 
                     @Override
-                    public long getSize() throws IOException {
+                    public long getSize() {
                         return -1;
                     }
                 });
@@ -5947,17 +5837,12 @@ public class ExifInterface {
                     int orientation = ExifInterface.ORIENTATION_NORMAL;
 
                     // all rotation angles in CW
-                    switch (Integer.parseInt(rotation)) {
-                        case 90:
-                            orientation = ExifInterface.ORIENTATION_ROTATE_90;
-                            break;
-                        case 180:
-                            orientation = ExifInterface.ORIENTATION_ROTATE_180;
-                            break;
-                        case 270:
-                            orientation = ExifInterface.ORIENTATION_ROTATE_270;
-                            break;
-                    }
+                    orientation = switch (Integer.parseInt(rotation)) {
+                        case 90 -> ExifInterface.ORIENTATION_ROTATE_90;
+                        case 180 -> ExifInterface.ORIENTATION_ROTATE_180;
+                        case 270 -> ExifInterface.ORIENTATION_ROTATE_270;
+                        default -> orientation;
+                    };
 
                     mAttributes[IFD_TYPE_PRIMARY].put(TAG_ORIENTATION,
                             ExifAttribute.createUShort(orientation, mExifByteOrder));
@@ -6029,7 +5914,7 @@ public class ExifInterface {
         // proprietary tags and therefore does not have offical documentation
         // See GetOlympusPreviewImage() in piex.cc & http://www.exiv2.org/tags-olympus.html
         ExifAttribute makerNoteAttribute =
-                (ExifAttribute) mAttributes[IFD_TYPE_EXIF].get(TAG_MAKER_NOTE);
+                mAttributes[IFD_TYPE_EXIF].get(TAG_MAKER_NOTE);
         if (makerNoteAttribute != null) {
             // Create an ordered DataInputStream for MakerNote
             SeekableByteOrderedDataInputStream makerNoteDataInputStream =
@@ -6054,10 +5939,8 @@ public class ExifInterface {
             readImageFileDirectory(makerNoteDataInputStream, IFD_TYPE_ORF_MAKER_NOTE);
 
             // Retrieve & update preview image offset & length values
-            ExifAttribute imageStartAttribute = (ExifAttribute)
-                    mAttributes[IFD_TYPE_ORF_CAMERA_SETTINGS].get(TAG_ORF_PREVIEW_IMAGE_START);
-            ExifAttribute imageLengthAttribute = (ExifAttribute)
-                    mAttributes[IFD_TYPE_ORF_CAMERA_SETTINGS].get(TAG_ORF_PREVIEW_IMAGE_LENGTH);
+            ExifAttribute imageStartAttribute = mAttributes[IFD_TYPE_ORF_CAMERA_SETTINGS].get(TAG_ORF_PREVIEW_IMAGE_START);
+            ExifAttribute imageLengthAttribute = mAttributes[IFD_TYPE_ORF_CAMERA_SETTINGS].get(TAG_ORF_PREVIEW_IMAGE_LENGTH);
 
             if (imageStartAttribute != null && imageLengthAttribute != null) {
                 mAttributes[IFD_TYPE_PREVIEW].put(TAG_JPEG_INTERCHANGE_FORMAT,
@@ -6069,8 +5952,7 @@ public class ExifInterface {
             // TODO: Check this behavior in other ORF files
             // Retrieve primary image length & width values
             // See piex.cc GetOlympusPreviewImage()
-            ExifAttribute aspectFrameAttribute = (ExifAttribute)
-                    mAttributes[IFD_TYPE_ORF_IMAGE_PROCESSING].get(TAG_ORF_ASPECT_FRAME);
+            ExifAttribute aspectFrameAttribute = mAttributes[IFD_TYPE_ORF_IMAGE_PROCESSING].get(TAG_ORF_ASPECT_FRAME);
             if (aspectFrameAttribute != null) {
                 int[] aspectFrameValues = (int[]) aspectFrameAttribute.getValue(mExifByteOrder);
                 if (aspectFrameValues == null || aspectFrameValues.length != 4) {
@@ -6112,7 +5994,7 @@ public class ExifInterface {
 
         // Retrieve preview and/or thumbnail image data
         ExifAttribute jpgFromRawAttribute =
-                (ExifAttribute) mAttributes[IFD_TYPE_PRIMARY].get(TAG_RW2_JPG_FROM_RAW);
+                mAttributes[IFD_TYPE_PRIMARY].get(TAG_RW2_JPG_FROM_RAW);
         if (jpgFromRawAttribute != null) {
             ByteOrderedDataInputStream jpegInputStream =
                     new ByteOrderedDataInputStream(jpgFromRawAttribute.bytes);
@@ -6122,9 +6004,9 @@ public class ExifInterface {
 
         // Set ISO tag value if necessary
         ExifAttribute rw2IsoAttribute =
-                (ExifAttribute) mAttributes[IFD_TYPE_PRIMARY].get(TAG_RW2_ISO);
+                mAttributes[IFD_TYPE_PRIMARY].get(TAG_RW2_ISO);
         ExifAttribute exifIsoAttribute =
-                (ExifAttribute) mAttributes[IFD_TYPE_EXIF].get(TAG_PHOTOGRAPHIC_SENSITIVITY);
+                mAttributes[IFD_TYPE_EXIF].get(TAG_PHOTOGRAPHIC_SENSITIVITY);
         if (rw2IsoAttribute != null && exifIsoAttribute == null) {
             // Place this attribute only if it doesn't exist
             mAttributes[IFD_TYPE_EXIF].put(TAG_PHOTOGRAPHIC_SENSITIVITY, rw2IsoAttribute);
@@ -6169,7 +6051,7 @@ public class ExifInterface {
                 // The first chunk must be the IHDR chunk
                 if (bytesRead == 16 && !Arrays.equals(type, PNG_CHUNK_TYPE_IHDR)) {
                     throw new IOException("Encountered invalid PNG file--IHDR chunk should appear"
-                            + "as the first chunk");
+                            + " as the first chunk");
                 }
 
                 if (Arrays.equals(type, PNG_CHUNK_TYPE_IEND)) {
@@ -6569,7 +6451,7 @@ public class ExifInterface {
 
                         while (true) {
                             byte[] type = new byte[WEBP_CHUNK_TYPE_BYTE_LENGTH];
-                            boolean animationFinished = false;
+                            boolean animationFinished;
                             try {
                                 totalInputStream.readFully(type);
                                 animationFinished = !Arrays.equals(type, WEBP_CHUNK_TYPE_ANMF);
@@ -6758,20 +6640,22 @@ public class ExifInterface {
             throws IOException {
         // Read byte order.
         short byteOrder = dataInputStream.readShort();
-        switch (byteOrder) {
-            case BYTE_ALIGN_II:
+        return switch (byteOrder) {
+            case BYTE_ALIGN_II -> {
                 if (DEBUG) {
                     Log.d(TAG, "readExifSegment: Byte Align II");
                 }
-                return LITTLE_ENDIAN;
-            case BYTE_ALIGN_MM:
+                yield LITTLE_ENDIAN;
+            }
+            case BYTE_ALIGN_MM -> {
                 if (DEBUG) {
                     Log.d(TAG, "readExifSegment: Byte Align MM");
                 }
-                return BIG_ENDIAN;
-            default:
-                throw new IOException("Invalid byte order: " + Integer.toHexString(byteOrder));
-        }
+                yield BIG_ENDIAN;
+            }
+            default ->
+                    throw new IOException("Invalid byte order: " + Integer.toHexString(byteOrder));
+        };
     }
 
     private void parseTiffHeaders(ByteOrderedDataInputStream dataInputStream) throws IOException {
@@ -6822,7 +6706,7 @@ public class ExifInterface {
             long nextEntryOffset = dataInputStream.position() + 4L;
 
             // Look up a corresponding tag from tag number
-            ExifTag tag = (ExifTag) sExifTagMapsForReading[ifdType].get(tagNumber);
+            ExifTag tag = sExifTagMapsForReading[ifdType].get(tagNumber);
 
             if (DEBUG) {
                 Log.d(TAG, String.format("ifdType: %d, tagNumber: %d, tagName: %s, dataFormat: %d, "
@@ -6879,15 +6763,13 @@ public class ExifInterface {
                     } else if (ifdType == IFD_TYPE_ORF_MAKER_NOTE
                             && TAG_ORF_THUMBNAIL_IMAGE.equals(tag.name)) {
                         // Retrieve & update values for thumbnail offset and length values for ORF
-                        mOrfThumbnailOffset = offset;
-                        mOrfThumbnailLength = numberOfComponents;
 
                         ExifAttribute compressionAttribute =
                                 ExifAttribute.createUShort(DATA_JPEG, mExifByteOrder);
                         ExifAttribute jpegInterchangeFormatAttribute =
-                                ExifAttribute.createULong(mOrfThumbnailOffset, mExifByteOrder);
+                                ExifAttribute.createULong(offset, mExifByteOrder);
                         ExifAttribute jpegInterchangeFormatLengthAttribute =
-                                ExifAttribute.createULong(mOrfThumbnailLength, mExifByteOrder);
+                                ExifAttribute.createULong(numberOfComponents, mExifByteOrder);
 
                         mAttributes[IFD_TYPE_THUMBNAIL].put(TAG_COMPRESSION, compressionAttribute);
                         mAttributes[IFD_TYPE_THUMBNAIL].put(TAG_JPEG_INTERCHANGE_FORMAT,
@@ -6983,7 +6865,7 @@ public class ExifInterface {
             // that is 65535.
             // See http://fileformats.archiveteam.org/wiki/Pentax_PEF
             if (((TAG_MAKE.equals(tag.name) || TAG_MODEL.equals(tag.name))
-                    && attribute.getStringValue(mExifByteOrder).contains(PEF_SIGNATURE))
+                    && Objects.requireNonNull(Objects.requireNonNull(attribute.getStringValue(mExifByteOrder))).contains(PEF_SIGNATURE))
                     || (TAG_COMPRESSION.equals(tag.name)
                     && attribute.getIntValue(mExifByteOrder) == 65535)) {
                 mMimeType = IMAGE_TYPE_PEF;
@@ -7035,16 +6917,16 @@ public class ExifInterface {
             throws IOException {
         // Check if image already has IMAGE_LENGTH & IMAGE_WIDTH values
         ExifAttribute imageLengthAttribute =
-                (ExifAttribute) mAttributes[imageType].get(TAG_IMAGE_LENGTH);
+                mAttributes[imageType].get(TAG_IMAGE_LENGTH);
         ExifAttribute imageWidthAttribute =
-                (ExifAttribute) mAttributes[imageType].get(TAG_IMAGE_WIDTH);
+                mAttributes[imageType].get(TAG_IMAGE_WIDTH);
 
         if (imageLengthAttribute == null || imageWidthAttribute == null) {
             // Find if offset for JPEG data exists
             ExifAttribute jpegInterchangeFormatAttribute =
-                    (ExifAttribute) mAttributes[imageType].get(TAG_JPEG_INTERCHANGE_FORMAT);
+                    mAttributes[imageType].get(TAG_JPEG_INTERCHANGE_FORMAT);
             ExifAttribute jpegInterchangeFormatLengthAttribute =
-                    (ExifAttribute) mAttributes[imageType].get(TAG_JPEG_INTERCHANGE_FORMAT_LENGTH);
+                    mAttributes[imageType].get(TAG_JPEG_INTERCHANGE_FORMAT_LENGTH);
             if (jpegInterchangeFormatAttribute != null
                     && jpegInterchangeFormatLengthAttribute != null) {
                 int jpegInterchangeFormat =
@@ -7064,10 +6946,10 @@ public class ExifInterface {
 
     // Sets thumbnail offset & length attributes based on JpegInterchangeFormat or StripOffsets tags
     private void setThumbnailData(ByteOrderedDataInputStream in) throws IOException {
-        HashMap thumbnailData = mAttributes[IFD_TYPE_THUMBNAIL];
+        HashMap<String, ExifAttribute> thumbnailData = mAttributes[IFD_TYPE_THUMBNAIL];
 
         ExifAttribute compressionAttribute =
-                (ExifAttribute) thumbnailData.get(TAG_COMPRESSION);
+                thumbnailData.get(TAG_COMPRESSION);
         if (compressionAttribute != null) {
             mThumbnailCompression = compressionAttribute.getIntValue(mExifByteOrder);
             switch (mThumbnailCompression) {
@@ -7217,7 +7099,7 @@ public class ExifInterface {
     }
 
     // Check if thumbnail data type is currently supported or not
-    private boolean isSupportedDataType(HashMap thumbnailData) throws IOException {
+    private boolean isSupportedDataType(HashMap thumbnailData) {
         ExifAttribute bitsPerSampleAttribute =
                 (ExifAttribute) thumbnailData.get(TAG_BITS_PER_SAMPLE);
         if (bitsPerSampleAttribute != null) {
@@ -7253,16 +7135,14 @@ public class ExifInterface {
 
     // Returns true if the image length and width values are <= 512.
     // See Section 4.8 of http://standardsproposals.bsigroup.com/Home/getPDF/567
-    private boolean isThumbnail(HashMap map) throws IOException {
+    private boolean isThumbnail(HashMap map) {
         ExifAttribute imageLengthAttribute = (ExifAttribute) map.get(TAG_IMAGE_LENGTH);
         ExifAttribute imageWidthAttribute = (ExifAttribute) map.get(TAG_IMAGE_WIDTH);
 
         if (imageLengthAttribute != null && imageWidthAttribute != null) {
             int imageLengthValue = imageLengthAttribute.getIntValue(mExifByteOrder);
             int imageWidthValue = imageWidthAttribute.getIntValue(mExifByteOrder);
-            if (imageLengthValue <= MAX_THUMBNAIL_SIZE && imageWidthValue <= MAX_THUMBNAIL_SIZE) {
-                return true;
-            }
+            return imageLengthValue <= MAX_THUMBNAIL_SIZE && imageWidthValue <= MAX_THUMBNAIL_SIZE;
         }
         return false;
     }
@@ -7279,9 +7159,9 @@ public class ExifInterface {
         // sizes, excluding padding at the right end or bottom end of the image to make sure that
         // the values are multiples of 64. See JEITA CP-3451C Table 5 and Section 4.8.1. B.
         ExifAttribute pixelXDimAttribute =
-                (ExifAttribute) mAttributes[IFD_TYPE_EXIF].get(TAG_PIXEL_X_DIMENSION);
+                mAttributes[IFD_TYPE_EXIF].get(TAG_PIXEL_X_DIMENSION);
         ExifAttribute pixelYDimAttribute =
-                (ExifAttribute) mAttributes[IFD_TYPE_EXIF].get(TAG_PIXEL_Y_DIMENSION);
+                mAttributes[IFD_TYPE_EXIF].get(TAG_PIXEL_Y_DIMENSION);
         if (pixelXDimAttribute != null && pixelYDimAttribute != null) {
             mAttributes[IFD_TYPE_PRIMARY].put(TAG_IMAGE_WIDTH, pixelXDimAttribute);
             mAttributes[IFD_TYPE_PRIMARY].put(TAG_IMAGE_LENGTH, pixelYDimAttribute);
@@ -7319,7 +7199,7 @@ public class ExifInterface {
      * which results in larger values for TAG_IMAGE_WIDTH and TAG_IMAGE_LENGTH tags.
      * This method corrects those tag values by checking first the values of TAG_DEFAULT_CROP_SIZE
      * See DNG Specification 1.4.0.0. Section 4. (DefaultCropSize)
-     *
+     * <p>
      * If image is a RW2 file, valid image sizes are stored in SensorBorder tags.
      * See tiff_parser.cc GetFullDimension32()
      * */
@@ -7327,16 +7207,16 @@ public class ExifInterface {
             throws IOException {
         // Uncompressed image valid image size values
         ExifAttribute defaultCropSizeAttribute =
-                (ExifAttribute) mAttributes[imageType].get(TAG_DEFAULT_CROP_SIZE);
+                mAttributes[imageType].get(TAG_DEFAULT_CROP_SIZE);
         // RW2 image valid image size values
         ExifAttribute topBorderAttribute =
-                (ExifAttribute) mAttributes[imageType].get(TAG_RW2_SENSOR_TOP_BORDER);
+                mAttributes[imageType].get(TAG_RW2_SENSOR_TOP_BORDER);
         ExifAttribute leftBorderAttribute =
-                (ExifAttribute) mAttributes[imageType].get(TAG_RW2_SENSOR_LEFT_BORDER);
+                mAttributes[imageType].get(TAG_RW2_SENSOR_LEFT_BORDER);
         ExifAttribute bottomBorderAttribute =
-                (ExifAttribute) mAttributes[imageType].get(TAG_RW2_SENSOR_BOTTOM_BORDER);
+                mAttributes[imageType].get(TAG_RW2_SENSOR_BOTTOM_BORDER);
         ExifAttribute rightBorderAttribute =
-                (ExifAttribute) mAttributes[imageType].get(TAG_RW2_SENSOR_RIGHT_BORDER);
+                mAttributes[imageType].get(TAG_RW2_SENSOR_RIGHT_BORDER);
 
         if (defaultCropSizeAttribute != null) {
             // Update for uncompressed image
@@ -7554,6 +7434,7 @@ public class ExifInterface {
                 for (Map.Entry<String, ExifAttribute> entry : mAttributes[ifdType].entrySet()) {
                     // Convert tag name to tag number.
                     final ExifTag tag = sExifTagMapsForWriting[ifdType].get(entry.getKey());
+                    assert tag != null;
                     final int tagNumber = tag.number;
                     final ExifAttribute attribute = entry.getValue();
                     final int size = attribute.size();
@@ -7647,7 +7528,6 @@ public class ExifInterface {
                 }
                 if (second == -1) {
                     dataFormat = new Pair<>(first, -1);
-                    continue;
                 }
             }
             return dataFormat;
@@ -7673,7 +7553,7 @@ public class ExifInterface {
             return new Pair<>(IFD_FORMAT_STRING, -1);
         }
         try {
-            Long longValue = Long.parseLong(entryValue);
+            long longValue = Long.parseLong(entryValue);
             if (longValue >= 0 && longValue <= 65535) {
                 return new Pair<>(IFD_FORMAT_USHORT, IFD_FORMAT_ULONG);
             }
@@ -7755,7 +7635,7 @@ public class ExifInterface {
             this(in, BIG_ENDIAN);
         }
 
-        ByteOrderedDataInputStream(InputStream in, ByteOrder byteOrder) throws IOException {
+        ByteOrderedDataInputStream(InputStream in, ByteOrder byteOrder) {
             mDataInputStream = new DataInputStream(in);
             mDataInputStream.mark(0);
             mPosition = 0;
@@ -7798,7 +7678,7 @@ public class ExifInterface {
         }
 
         @Override
-        public String readLine() throws IOException {
+        public String readLine() {
             Log.d(TAG, "Currently unsupported");
             return null;
         }
@@ -7878,7 +7758,7 @@ public class ExifInterface {
         }
 
         @Override
-        public int skipBytes(int n) throws IOException {
+        public int skipBytes(int n) {
             throw new UnsupportedOperationException("skipBytes is currently unsupported");
         }
 
@@ -7891,7 +7771,7 @@ public class ExifInterface {
             int totalSkipped = 0;
             while (totalSkipped < n) {
                 int skipped = (int) mDataInputStream.skip(n - totalSkipped);
-                if (skipped <= 0) {
+                if (skipped == 0) {
                     if (mSkipBuffer == null) {
                         mSkipBuffer = new byte[SKIP_BUFFER_SIZE];
                     }
@@ -8010,17 +7890,17 @@ public class ExifInterface {
 
         public void writeShort(short val) throws IOException {
             if (mByteOrder == LITTLE_ENDIAN) {
-                mOutputStream.write((val >>> 0) & 0xFF);
+                mOutputStream.write((val) & 0xFF);
                 mOutputStream.write((val >>> 8) & 0xFF);
             } else if (mByteOrder == BIG_ENDIAN) {
                 mOutputStream.write((val >>> 8) & 0xFF);
-                mOutputStream.write((val >>> 0) & 0xFF);
+                mOutputStream.write((val) & 0xFF);
             }
         }
 
         public void writeInt(int val) throws IOException {
             if (mByteOrder == LITTLE_ENDIAN) {
-                mOutputStream.write((val >>> 0) & 0xFF);
+                mOutputStream.write((val) & 0xFF);
                 mOutputStream.write((val >>> 8) & 0xFF);
                 mOutputStream.write((val >>> 16) & 0xFF);
                 mOutputStream.write((val >>> 24) & 0xFF);
@@ -8028,7 +7908,7 @@ public class ExifInterface {
                 mOutputStream.write((val >>> 24) & 0xFF);
                 mOutputStream.write((val >>> 16) & 0xFF);
                 mOutputStream.write((val >>> 8) & 0xFF);
-                mOutputStream.write((val >>> 0) & 0xFF);
+                mOutputStream.write((val) & 0xFF);
             }
         }
 
@@ -8050,8 +7930,7 @@ public class ExifInterface {
     }
 
     // Swaps image data based on image size
-    private void swapBasedOnImageSize(@IfdType int firstIfdType, @IfdType int secondIfdType)
-            throws IOException {
+    private void swapBasedOnImageSize(@IfdType int firstIfdType, @IfdType int secondIfdType) {
         if (mAttributes[firstIfdType].isEmpty() || mAttributes[secondIfdType].isEmpty()) {
             if (DEBUG) {
                 Log.d(TAG, "Cannot perform swap since only one image data exists");
@@ -8060,13 +7939,13 @@ public class ExifInterface {
         }
 
         ExifAttribute firstImageLengthAttribute =
-                (ExifAttribute) mAttributes[firstIfdType].get(TAG_IMAGE_LENGTH);
+                mAttributes[firstIfdType].get(TAG_IMAGE_LENGTH);
         ExifAttribute firstImageWidthAttribute =
-                (ExifAttribute) mAttributes[firstIfdType].get(TAG_IMAGE_WIDTH);
+                mAttributes[firstIfdType].get(TAG_IMAGE_WIDTH);
         ExifAttribute secondImageLengthAttribute =
-                (ExifAttribute) mAttributes[secondIfdType].get(TAG_IMAGE_LENGTH);
+                mAttributes[secondIfdType].get(TAG_IMAGE_LENGTH);
         ExifAttribute secondImageWidthAttribute =
-                (ExifAttribute) mAttributes[secondIfdType].get(TAG_IMAGE_WIDTH);
+                mAttributes[secondIfdType].get(TAG_IMAGE_WIDTH);
 
         if (firstImageLengthAttribute == null || firstImageWidthAttribute == null) {
             if (DEBUG) {
@@ -8108,18 +7987,12 @@ public class ExifInterface {
      * ByteArrayInputStream.
      */
     private static boolean shouldSupportSeek(int mimeType) {
-        if (mimeType == IMAGE_TYPE_JPEG || mimeType == IMAGE_TYPE_RAF || mimeType == IMAGE_TYPE_PNG
-                || mimeType == IMAGE_TYPE_WEBP) {
-            return false;
-        }
-        return true;
+        return mimeType != IMAGE_TYPE_JPEG && mimeType != IMAGE_TYPE_RAF && mimeType != IMAGE_TYPE_PNG
+                && mimeType != IMAGE_TYPE_WEBP;
     }
 
     private static boolean isSupportedFormatForSavingAttributes(int mimeType) {
-        if (mimeType == IMAGE_TYPE_JPEG || mimeType == IMAGE_TYPE_PNG
-                || mimeType == IMAGE_TYPE_WEBP) {
-            return true;
-        }
-        return false;
+        return mimeType == IMAGE_TYPE_JPEG || mimeType == IMAGE_TYPE_PNG
+                || mimeType == IMAGE_TYPE_WEBP;
     }
 }

@@ -65,7 +65,7 @@ class ExifInterfaceUtils {
             int bytesRead = in.read(buffer, 0, bytesToRead);
             if (bytesRead != bytesToRead) {
                 throw new IOException("Failed to copy the given amount of bytes from the input"
-                        + "stream to the output stream.");
+                        + " stream to the output stream.");
             }
             remainder -= bytesRead;
             out.write(buffer, 0, bytesRead);
@@ -77,8 +77,7 @@ class ExifInterfaceUtils {
      * Return null for other types of input.
      */
     static long[] convertToLongArray(Object inputObj) {
-        if (inputObj instanceof int[]) {
-            int[] input = (int[]) inputObj;
+        if (inputObj instanceof int[] input) {
             long[] result = new long[input.length];
             for (int i = 0; i < input.length; i++) {
                 result[i] = input[i];
@@ -107,8 +106,8 @@ class ExifInterfaceUtils {
 
     static String byteArrayToHexString(byte[] bytes) {
         StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (int i = 0; i < bytes.length; i++) {
-            sb.append(String.format("%02x", bytes[i]));
+        for (byte aByte : bytes) {
+            sb.append(String.format("%02x", aByte));
         }
         return sb.toString();
     }
@@ -170,8 +169,8 @@ class ExifInterfaceUtils {
         }
 
         @DoNotInline
-        static long lseek(FileDescriptor fd, long offset, int whence) throws ErrnoException {
-            return Os.lseek(fd, offset, whence);
+        static long lseek(FileDescriptor fd, int whence) throws ErrnoException {
+            return Os.lseek(fd, 0, whence);
         }
 
         @DoNotInline

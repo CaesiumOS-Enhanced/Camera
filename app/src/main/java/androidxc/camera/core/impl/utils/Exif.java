@@ -55,26 +55,11 @@ public final class Exif {
     private static final String TAG = Exif.class.getSimpleName();
 
     private static final ThreadLocal<SimpleDateFormat> DATE_FORMAT =
-            new ThreadLocal<SimpleDateFormat>() {
-                @Override
-                public SimpleDateFormat initialValue() {
-                    return new SimpleDateFormat("yyyy:MM:dd", Locale.US);
-                }
-            };
+            ThreadLocal.withInitial(() -> new SimpleDateFormat("yyyy:MM:dd", Locale.US));
     private static final ThreadLocal<SimpleDateFormat> TIME_FORMAT =
-            new ThreadLocal<SimpleDateFormat>() {
-                @Override
-                public SimpleDateFormat initialValue() {
-                    return new SimpleDateFormat("HH:mm:ss", Locale.US);
-                }
-            };
+            ThreadLocal.withInitial(() -> new SimpleDateFormat("HH:mm:ss", Locale.US));
     private static final ThreadLocal<SimpleDateFormat> DATETIME_FORMAT =
-            new ThreadLocal<SimpleDateFormat>() {
-                @Override
-                public SimpleDateFormat initialValue() {
-                    return new SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US);
-                }
-            };
+            ThreadLocal.withInitial(() -> new SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US));
 
     private static final String KILOMETERS_PER_HOUR = "K";
     private static final String MILES_PER_HOUR = "M";
@@ -154,19 +139,19 @@ public final class Exif {
     }
 
     private static String convertToExifDateTime(long timestamp) {
-        return DATETIME_FORMAT.get().format(new Date(timestamp));
+        return Objects.requireNonNull(DATETIME_FORMAT.get()).format(new Date(timestamp));
     }
 
     private static Date convertFromExifDateTime(String dateTime) throws ParseException {
-        return DATETIME_FORMAT.get().parse(dateTime);
+        return Objects.requireNonNull(DATETIME_FORMAT.get()).parse(dateTime);
     }
 
     private static Date convertFromExifDate(String date) throws ParseException {
-        return DATE_FORMAT.get().parse(date);
+        return Objects.requireNonNull(DATE_FORMAT.get()).parse(date);
     }
 
     private static Date convertFromExifTime(String time) throws ParseException {
-        return TIME_FORMAT.get().parse(time);
+        return Objects.requireNonNull(TIME_FORMAT.get()).parse(time);
     }
 
     /** Persists changes to disc. */
@@ -195,6 +180,7 @@ public final class Exif {
         }
     }
 
+    @NonNull
     @Override
     public String toString() {
         return String.format(
@@ -244,80 +230,46 @@ public final class Exif {
 
     /** @return The degree of rotation (eg. 0, 90, 180, 270). */
     public int getRotation() {
-        switch (getOrientation()) {
-            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL:
-                return 0;
-            case ExifInterface.ORIENTATION_ROTATE_180:
-                return 180;
-            case ExifInterface.ORIENTATION_FLIP_VERTICAL:
-                return 180;
-            case ExifInterface.ORIENTATION_TRANSPOSE:
-                return 270;
-            case ExifInterface.ORIENTATION_ROTATE_90:
-                return 90;
-            case ExifInterface.ORIENTATION_TRANSVERSE:
-                return 90;
-            case ExifInterface.ORIENTATION_ROTATE_270:
-                return 270;
-            case ExifInterface.ORIENTATION_NORMAL:
-                // Fall-through
-            case ExifInterface.ORIENTATION_UNDEFINED:
-                // Fall-through
-            default:
-                return 0;
-        }
+        return switch (getOrientation()) {
+            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> 0;
+            case ExifInterface.ORIENTATION_ROTATE_180, ExifInterface.ORIENTATION_FLIP_VERTICAL -> 180;
+            case ExifInterface.ORIENTATION_TRANSPOSE, ExifInterface.ORIENTATION_ROTATE_270 -> 270;
+            case ExifInterface.ORIENTATION_ROTATE_90, ExifInterface.ORIENTATION_TRANSVERSE -> 90;
+            // Fall-through
+            // Fall-through
+            default -> 0;
+        };
     }
 
     /** @return True if the image is flipped vertically after rotation. */
     public boolean isFlippedVertically() {
-        switch (getOrientation()) {
-            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL:
-                return false;
-            case ExifInterface.ORIENTATION_ROTATE_180:
-                return false;
-            case ExifInterface.ORIENTATION_FLIP_VERTICAL:
-                return true;
-            case ExifInterface.ORIENTATION_TRANSPOSE:
-                return true;
-            case ExifInterface.ORIENTATION_ROTATE_90:
-                return false;
-            case ExifInterface.ORIENTATION_TRANSVERSE:
-                return true;
-            case ExifInterface.ORIENTATION_ROTATE_270:
-                return false;
-            case ExifInterface.ORIENTATION_NORMAL:
-                // Fall-through
-            case ExifInterface.ORIENTATION_UNDEFINED:
-                // Fall-through
-            default:
-                return false;
-        }
+        return switch (getOrientation()) {
+            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> false;
+            case ExifInterface.ORIENTATION_ROTATE_180 -> false;
+            case ExifInterface.ORIENTATION_FLIP_VERTICAL, ExifInterface.ORIENTATION_TRANSPOSE,
+                 ExifInterface.ORIENTATION_TRANSVERSE -> true;
+            case ExifInterface.ORIENTATION_ROTATE_90 -> false;
+            case ExifInterface.ORIENTATION_ROTATE_270 -> false;
+            // Fall-through
+            // Fall-through
+            default -> false;
+        };
     }
 
     /** @return True if the image is flipped horizontally after rotation. */
     public boolean isFlippedHorizontally() {
-        switch (getOrientation()) {
-            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL:
-                return true;
-            case ExifInterface.ORIENTATION_ROTATE_180:
-                return false;
-            case ExifInterface.ORIENTATION_FLIP_VERTICAL:
-                return false;
-            case ExifInterface.ORIENTATION_TRANSPOSE:
-                return false;
-            case ExifInterface.ORIENTATION_ROTATE_90:
-                return false;
-            case ExifInterface.ORIENTATION_TRANSVERSE:
-                return false;
-            case ExifInterface.ORIENTATION_ROTATE_270:
-                return false;
-            case ExifInterface.ORIENTATION_NORMAL:
-                // Fall-through
-            case ExifInterface.ORIENTATION_UNDEFINED:
-                // Fall-through
-            default:
-                return false;
-        }
+        return switch (getOrientation()) {
+            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> true;
+            case ExifInterface.ORIENTATION_ROTATE_180 -> false;
+            case ExifInterface.ORIENTATION_FLIP_VERTICAL -> false;
+            case ExifInterface.ORIENTATION_TRANSPOSE -> false;
+            case ExifInterface.ORIENTATION_ROTATE_90 -> false;
+            case ExifInterface.ORIENTATION_TRANSVERSE -> false;
+            case ExifInterface.ORIENTATION_ROTATE_270 -> false;
+            // Fall-through
+            // Fall-through
+            default -> false;
+        };
     }
 
     private void attachLastModifiedTimestamp() {
@@ -329,7 +281,7 @@ public final class Exif {
         try {
             String subsec = Long.toString(now - convertFromExifDateTime(datetime).getTime());
             mExifInterface.setAttribute(ExifInterface.TAG_SUBSEC_TIME, subsec);
-        } catch (ParseException e) {
+        } catch (ParseException ignored) {
         }
     }
 
@@ -413,19 +365,12 @@ public final class Exif {
             location.setAltitude(altitude);
         }
         if (speed != 0) {
-            switch (speedRef) {
-                case MILES_PER_HOUR:
-                    speed = Speed.fromMilesPerHour(speed).toMetersPerSecond();
-                    break;
-                case KNOTS:
-                    speed = Speed.fromKnots(speed).toMetersPerSecond();
-                    break;
-                case KILOMETERS_PER_HOUR:
-                    // fall through
-                default:
-                    speed = Speed.fromKilometersPerHour(speed).toMetersPerSecond();
-                    break;
-            }
+            speed = switch (speedRef) {
+                case MILES_PER_HOUR -> Speed.fromMilesPerHour(speed).toMetersPerSecond();
+                case KNOTS -> Speed.fromKnots(speed).toMetersPerSecond();
+                // fall through
+                default -> Speed.fromKilometersPerHour(speed).toMetersPerSecond();
+            };
 
             location.setSpeed((float) speed);
         }
@@ -459,70 +404,39 @@ public final class Exif {
         while (degrees < 0) {
             degrees += 90;
 
-            switch (orientation) {
-                case ExifInterface.ORIENTATION_FLIP_HORIZONTAL:
-                    orientation = ExifInterface.ORIENTATION_TRANSPOSE;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_180:
-                    orientation = ExifInterface.ORIENTATION_ROTATE_90;
-                    break;
-                case ExifInterface.ORIENTATION_FLIP_VERTICAL:
-                    orientation = ExifInterface.ORIENTATION_TRANSVERSE;
-                    break;
-                case ExifInterface.ORIENTATION_TRANSPOSE:
-                    orientation = ExifInterface.ORIENTATION_FLIP_VERTICAL;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_90:
-                    orientation = ExifInterface.ORIENTATION_NORMAL;
-                    break;
-                case ExifInterface.ORIENTATION_TRANSVERSE:
-                    orientation = ExifInterface.ORIENTATION_FLIP_HORIZONTAL;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_270:
-                    orientation = ExifInterface.ORIENTATION_ROTATE_90;
-                    break;
-                case ExifInterface.ORIENTATION_NORMAL:
-                    // Fall-through
-                case ExifInterface.ORIENTATION_UNDEFINED:
-                    // Fall-through
-                default:
-                    orientation = ExifInterface.ORIENTATION_ROTATE_270;
-                    break;
-            }
+            orientation = switch (orientation) {
+                case ExifInterface.ORIENTATION_FLIP_HORIZONTAL ->
+                        ExifInterface.ORIENTATION_TRANSPOSE;
+                case ExifInterface.ORIENTATION_ROTATE_180, ExifInterface.ORIENTATION_ROTATE_270 -> ExifInterface.ORIENTATION_ROTATE_90;
+                case ExifInterface.ORIENTATION_FLIP_VERTICAL ->
+                        ExifInterface.ORIENTATION_TRANSVERSE;
+                case ExifInterface.ORIENTATION_TRANSPOSE -> ExifInterface.ORIENTATION_FLIP_VERTICAL;
+                case ExifInterface.ORIENTATION_ROTATE_90 -> ExifInterface.ORIENTATION_NORMAL;
+                case ExifInterface.ORIENTATION_TRANSVERSE ->
+                        ExifInterface.ORIENTATION_FLIP_HORIZONTAL;
+                // Fall-through
+                // Fall-through
+                default -> ExifInterface.ORIENTATION_ROTATE_270;
+            };
         }
         while (degrees > 0) {
             degrees -= 90;
 
-            switch (orientation) {
-                case ExifInterface.ORIENTATION_FLIP_HORIZONTAL:
-                    orientation = ExifInterface.ORIENTATION_TRANSVERSE;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_180:
-                    orientation = ExifInterface.ORIENTATION_ROTATE_270;
-                    break;
-                case ExifInterface.ORIENTATION_FLIP_VERTICAL:
-                    orientation = ExifInterface.ORIENTATION_TRANSPOSE;
-                    break;
-                case ExifInterface.ORIENTATION_TRANSPOSE:
-                    orientation = ExifInterface.ORIENTATION_FLIP_HORIZONTAL;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_90:
-                    orientation = ExifInterface.ORIENTATION_ROTATE_180;
-                    break;
-                case ExifInterface.ORIENTATION_TRANSVERSE:
-                    orientation = ExifInterface.ORIENTATION_FLIP_VERTICAL;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_270:
-                    orientation = ExifInterface.ORIENTATION_NORMAL;
-                    break;
-                case ExifInterface.ORIENTATION_NORMAL:
-                    // Fall-through
-                case ExifInterface.ORIENTATION_UNDEFINED:
-                    // Fall-through
-                default:
-                    orientation = ExifInterface.ORIENTATION_ROTATE_90;
-                    break;
-            }
+            orientation = switch (orientation) {
+                case ExifInterface.ORIENTATION_FLIP_HORIZONTAL ->
+                        ExifInterface.ORIENTATION_TRANSVERSE;
+                case ExifInterface.ORIENTATION_ROTATE_180 -> ExifInterface.ORIENTATION_ROTATE_270;
+                case ExifInterface.ORIENTATION_FLIP_VERTICAL -> ExifInterface.ORIENTATION_TRANSPOSE;
+                case ExifInterface.ORIENTATION_TRANSPOSE ->
+                        ExifInterface.ORIENTATION_FLIP_HORIZONTAL;
+                case ExifInterface.ORIENTATION_ROTATE_90 -> ExifInterface.ORIENTATION_ROTATE_180;
+                case ExifInterface.ORIENTATION_TRANSVERSE ->
+                        ExifInterface.ORIENTATION_FLIP_VERTICAL;
+                case ExifInterface.ORIENTATION_ROTATE_270 -> ExifInterface.ORIENTATION_NORMAL;
+                // Fall-through
+                // Fall-through
+                default -> ExifInterface.ORIENTATION_ROTATE_90;
+            };
         }
         mExifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, String.valueOf(orientation));
     }
@@ -532,37 +446,18 @@ public final class Exif {
      * are reversed.
      */
     public void flipVertically() {
-        int orientation;
-        switch (getOrientation()) {
-            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL:
-                orientation = ExifInterface.ORIENTATION_ROTATE_180;
-                break;
-            case ExifInterface.ORIENTATION_ROTATE_180:
-                orientation = ExifInterface.ORIENTATION_FLIP_HORIZONTAL;
-                break;
-            case ExifInterface.ORIENTATION_FLIP_VERTICAL:
-                orientation = ExifInterface.ORIENTATION_NORMAL;
-                break;
-            case ExifInterface.ORIENTATION_TRANSPOSE:
-                orientation = ExifInterface.ORIENTATION_ROTATE_270;
-                break;
-            case ExifInterface.ORIENTATION_ROTATE_90:
-                orientation = ExifInterface.ORIENTATION_TRANSVERSE;
-                break;
-            case ExifInterface.ORIENTATION_TRANSVERSE:
-                orientation = ExifInterface.ORIENTATION_ROTATE_90;
-                break;
-            case ExifInterface.ORIENTATION_ROTATE_270:
-                orientation = ExifInterface.ORIENTATION_TRANSPOSE;
-                break;
-            case ExifInterface.ORIENTATION_NORMAL:
-                // Fall-through
-            case ExifInterface.ORIENTATION_UNDEFINED:
-                // Fall-through
-            default:
-                orientation = ExifInterface.ORIENTATION_FLIP_VERTICAL;
-                break;
-        }
+        int orientation = switch (getOrientation()) {
+            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> ExifInterface.ORIENTATION_ROTATE_180;
+            case ExifInterface.ORIENTATION_ROTATE_180 -> ExifInterface.ORIENTATION_FLIP_HORIZONTAL;
+            case ExifInterface.ORIENTATION_FLIP_VERTICAL -> ExifInterface.ORIENTATION_NORMAL;
+            case ExifInterface.ORIENTATION_TRANSPOSE -> ExifInterface.ORIENTATION_ROTATE_270;
+            case ExifInterface.ORIENTATION_ROTATE_90 -> ExifInterface.ORIENTATION_TRANSVERSE;
+            case ExifInterface.ORIENTATION_TRANSVERSE -> ExifInterface.ORIENTATION_ROTATE_90;
+            case ExifInterface.ORIENTATION_ROTATE_270 -> ExifInterface.ORIENTATION_TRANSPOSE;
+            // Fall-through
+            // Fall-through
+            default -> ExifInterface.ORIENTATION_FLIP_VERTICAL;
+        };
         mExifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, String.valueOf(orientation));
     }
 
@@ -571,37 +466,18 @@ public final class Exif {
      * are reversed.
      */
     public void flipHorizontally() {
-        int orientation;
-        switch (getOrientation()) {
-            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL:
-                orientation = ExifInterface.ORIENTATION_NORMAL;
-                break;
-            case ExifInterface.ORIENTATION_ROTATE_180:
-                orientation = ExifInterface.ORIENTATION_FLIP_VERTICAL;
-                break;
-            case ExifInterface.ORIENTATION_FLIP_VERTICAL:
-                orientation = ExifInterface.ORIENTATION_ROTATE_180;
-                break;
-            case ExifInterface.ORIENTATION_TRANSPOSE:
-                orientation = ExifInterface.ORIENTATION_ROTATE_90;
-                break;
-            case ExifInterface.ORIENTATION_ROTATE_90:
-                orientation = ExifInterface.ORIENTATION_TRANSPOSE;
-                break;
-            case ExifInterface.ORIENTATION_TRANSVERSE:
-                orientation = ExifInterface.ORIENTATION_ROTATE_270;
-                break;
-            case ExifInterface.ORIENTATION_ROTATE_270:
-                orientation = ExifInterface.ORIENTATION_TRANSVERSE;
-                break;
-            case ExifInterface.ORIENTATION_NORMAL:
-                // Fall-through
-            case ExifInterface.ORIENTATION_UNDEFINED:
-                // Fall-through
-            default:
-                orientation = ExifInterface.ORIENTATION_FLIP_HORIZONTAL;
-                break;
-        }
+        int orientation = switch (getOrientation()) {
+            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> ExifInterface.ORIENTATION_NORMAL;
+            case ExifInterface.ORIENTATION_ROTATE_180 -> ExifInterface.ORIENTATION_FLIP_VERTICAL;
+            case ExifInterface.ORIENTATION_FLIP_VERTICAL -> ExifInterface.ORIENTATION_ROTATE_180;
+            case ExifInterface.ORIENTATION_TRANSPOSE -> ExifInterface.ORIENTATION_ROTATE_90;
+            case ExifInterface.ORIENTATION_ROTATE_90 -> ExifInterface.ORIENTATION_TRANSPOSE;
+            case ExifInterface.ORIENTATION_TRANSVERSE -> ExifInterface.ORIENTATION_ROTATE_270;
+            case ExifInterface.ORIENTATION_ROTATE_270 -> ExifInterface.ORIENTATION_TRANSVERSE;
+            // Fall-through
+            // Fall-through
+            default -> ExifInterface.ORIENTATION_FLIP_HORIZONTAL;
+        };
         mExifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, String.valueOf(orientation));
     }
 
@@ -628,7 +504,7 @@ public final class Exif {
             String subsec = Long.toString(now - convertFromExifDateTime(datetime).getTime());
             mExifInterface.setAttribute(ExifInterface.TAG_SUBSEC_TIME_ORIGINAL, subsec);
             mExifInterface.setAttribute(ExifInterface.TAG_SUBSEC_TIME_DIGITIZED, subsec);
-        } catch (ParseException e) {
+        } catch (ParseException ignored) {
         }
 
         mRemoveTimestamp = false;
@@ -711,17 +587,12 @@ public final class Exif {
             return new Converter(knots * 1.15078);
         }
 
-        static final class Converter {
-            final double mMph;
-
-            Converter(double mph) {
-                mMph = mph;
-            }
+        record Converter(double mMph) {
 
             double toMetersPerSecond() {
-                return mMph / 2.23694;
-            }
-        }
+                        return mMph / 2.23694;
+                    }
+                }
     }
 
     /**

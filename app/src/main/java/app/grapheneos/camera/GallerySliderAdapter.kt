@@ -55,7 +55,7 @@ class GallerySliderAdapter(
 
         playButton.visibility = View.GONE
 
-        holder.currentPostion = position
+        holder.currentPosition = position
 
         gActivity.asyncImageLoader.executeIfAlive {
             val bitmap: Bitmap? = try {
@@ -68,7 +68,7 @@ class GallerySliderAdapter(
             } catch (e: Exception) { null }
 
             gActivity.mainExecutor.execute {
-                if (holder.currentPostion == position) {
+                if (holder.currentPosition == position) {
                     if (bitmap != null) {
                         placeholderText.visibility = View.GONE
                         mediaPreview.visibility = View.VISIBLE

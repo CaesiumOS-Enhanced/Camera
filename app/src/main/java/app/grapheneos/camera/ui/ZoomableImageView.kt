@@ -347,7 +347,7 @@ class ZoomableImageView @JvmOverloads constructor(
         if (saveScale == 1f) {
             // Fit to screen.
             val scale: Float
-            if (drawable?.intrinsicWidth ?: 0 == 0 || drawable?.intrinsicHeight ?: 0 == 0) return
+            if ((drawable?.intrinsicWidth ?: 0) == 0 || (drawable?.intrinsicHeight ?: 0) == 0) return
             val bmWidth = drawable.intrinsicWidth
             val bmHeight = drawable.intrinsicHeight
 //            Log.d("bmSize", "bmWidth: $bmWidth bmHeight : $bmHeight")
