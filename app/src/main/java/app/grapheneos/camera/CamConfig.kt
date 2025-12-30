@@ -20,7 +20,6 @@ import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ExperimentalSessionConfig
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.MirrorMode
@@ -1086,7 +1085,6 @@ class CamConfig(private val mActivity: MainActivity) {
     }
 
     // Start the camera with latest hard configuration
-    @OptIn(ExperimentalSessionConfig::class)
     @SuppressLint("RestrictedApi")
     fun startCamera(forced: Boolean = false) {
         if ((!forced && camera != null) || cameraProvider == null) return
