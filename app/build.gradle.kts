@@ -1,13 +1,3 @@
-import java.io.FileInputStream
-import java.util.Properties
-
-val keystorePropertiesFile = rootProject.file("keystore.properties")
-val useKeystoreProperties = keystorePropertiesFile.canRead()
-val keystoreProperties = Properties()
-if (useKeystoreProperties) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-}
-
 plugins {
     id("com.android.application")
     kotlin("android")
@@ -20,25 +10,6 @@ java {
 }
 
 android {
-    if (useKeystoreProperties) {
-        signingConfigs {
-            create("release") {
-                storeFile = rootProject.file(keystoreProperties["storeFile"]!!)
-                storePassword = keystoreProperties["storePassword"] as String
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                enableV4Signing = true
-            }
-
-            create("play") {
-                storeFile = rootProject.file(keystoreProperties["storeFile"]!!)
-                storePassword = keystoreProperties["storePassword"] as String
-                keyAlias = keystoreProperties["uploadKeyAlias"] as String
-                keyPassword = keystoreProperties["uploadKeyPassword"] as String
-            }
-        }
-    }
-
     compileSdk = 36
     buildToolsVersion = "36.1.0"
     ndkVersion = "29.0.14206865"
@@ -58,9 +29,6 @@ android {
             isShrinkResources = true
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (useKeystoreProperties) {
-                signingConfig = signingConfigs.getByName("release")
-            }
             resValue("string", "app_name", "Camera")
         }
 
@@ -73,9 +41,6 @@ android {
         create("play") {
             initWith(getByName("release"))
             applicationIdSuffix = ".play"
-            if (useKeystoreProperties) {
-                signingConfig = signingConfigs.getByName("play")
-            }
         }
     }
 
