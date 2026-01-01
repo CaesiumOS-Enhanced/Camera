@@ -187,7 +187,7 @@ class VideoCapturer(private val mActivity: MainActivity) {
         val pendingRecording = recordingCtx.pendingRecording
 
         if (includeAudio) {
-            pendingRecording.withAudioEnabled(isMuted)
+            pendingRecording.withAudioEnabled()
         }
 
         beforeRecordingStarts()
@@ -314,6 +314,14 @@ class VideoCapturer(private val mActivity: MainActivity) {
         mActivity.timerView.visibility = View.VISIBLE
 
         mActivity.settingsDialog.includeAudioToggle.isEnabled = false
+
+        if (camConfig.includeAudio) {
+            isMuted = false
+            mActivity.muteToggle.setImageResource(R.drawable.mic_on)
+            mActivity.muteToggle.setBackgroundColor(mActivity.getColor(R.color.red))
+            mActivity.muteToggle.tooltipText = mActivity.getString(R.string.tap_to_mute_audio)
+            mActivity.muteToggle.visibility = View.VISIBLE
+        }
     }
 
     private fun afterRecordingStops() {
@@ -365,6 +373,7 @@ class VideoCapturer(private val mActivity: MainActivity) {
         //   mActivity.micOffIcon.visibility = View.VISIBLE
 
         mActivity.settingsDialog.includeAudioToggle.isEnabled = true
+        mActivity.muteToggle.visibility = View.GONE
 
         isRecording = false
 
@@ -372,12 +381,14 @@ class VideoCapturer(private val mActivity: MainActivity) {
     }
 
     fun muteRecording() {
+        if (!isRecording) return
         check(camConfig.includeAudio)
         isMuted = true
         recording?.mute(true)
     }
 
     fun unmuteRecording() {
+        if (!isRecording) return
         check(camConfig.includeAudio)
         isMuted = false
         recording?.mute(false)
