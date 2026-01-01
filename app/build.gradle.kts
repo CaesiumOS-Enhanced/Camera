@@ -46,11 +46,11 @@ android {
     namespace = "app.grapheneos.camera"
 
     defaultConfig {
-        applicationId = "app.grapheneos.camera"
+        applicationId = "com.jpb.camera"
         minSdk = 29
         targetSdk = 36
-        versionCode = 90
-        versionName = versionCode.toString()
+        versionCode = 11
+        versionName = "1.1"
     }
 
     buildTypes {
