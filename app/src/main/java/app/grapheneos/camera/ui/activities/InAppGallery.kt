@@ -3,7 +3,6 @@ package app.grapheneos.camera.ui.activities
 import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -85,7 +84,6 @@ class InAppGallery : AppCompatActivity() {
         const val INTENT_KEY_LAST_CAPTURED_ITEM = "last_captured_item"
 
         const val LAST_VIEWED_ITEM_KEY = "LAST_VIEWED_ITEM_KEY"
-        const val EMPTY_GALLERY = "empty_gallery"
 
         @SuppressLint("SimpleDateFormat")
         fun convertTime(time: Long, showTimeZone: Boolean = true): String {
@@ -561,12 +559,6 @@ class InAppGallery : AppCompatActivity() {
         showUI()
     }
 
-    fun setEmptyGalleryResult() {
-        val resultIntent = Intent()
-        resultIntent.putExtra(EMPTY_GALLERY, true)
-        setResult(Activity.RESULT_OK, resultIntent)
-    }
-
     fun asyncResultReady(items: ArrayList<CapturedItem>) {
         if (isDestroyed) {
             return
@@ -574,7 +566,6 @@ class InAppGallery : AppCompatActivity() {
 
         if (items.isEmpty()) {
             Toast.makeText(applicationContext, R.string.empty_gallery, Toast.LENGTH_SHORT).show()
-            setEmptyGalleryResult()
             finish()
             return
         }

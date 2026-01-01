@@ -119,7 +119,6 @@ class GallerySliderAdapter(
             gActivity.showMessage(
                 gActivity.getString(R.string.existing_no_image)
             )
-            gActivity.setEmptyGalleryResult()
             gActivity.finish()
         }
 
